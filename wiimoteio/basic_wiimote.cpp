@@ -1,3 +1,27 @@
+/*
+Copyright (c) 2011 - wiimoteio project
+
+This software is provided 'as-is', without any express or implied
+warranty. In no event will the authors be held liable for any damages
+arising from the use of this software.
+
+Permission is granted to anyone to use this software for any purpose,
+including commercial applications, and to alter it and redistribute it
+freely, subject to the following restrictions:
+
+1. The origin of this software must not be misrepresented; you must not
+claim that you wrote the original software. If you use this software
+in a product, an acknowledgment in the product documentation would be
+appreciated but is not required.
+
+2. Altered source versions must be plainly marked as such, and must not be
+misrepresented as being the original software.
+
+3. This notice may not be removed or altered from any source
+distribution.
+*/
+
+#include <numeric>
 
 #include "basic_wiimote.h"
 
@@ -100,11 +124,17 @@ std::future<std::vector<u8>> basic_wiimote::read_data(address_space _space, addr
 	return fut;
 }
 
-void basic_wiimote::write_data(address_space _space, address_type _address, const std::vector<u8>& data)
+std::future<basic_wiimote::ack_error> basic_wiimote::write_data(address_space _space, address_type _address, const std::vector<u8>& data)
 {
-	auto const state = m_state.get();
-
 	auto iter = data.begin(), iterend = data.end();
+	auto const count = (iterend - iter + 0xf) / 0x10;
+
+	// TODO: check data.size() first
+	std::unique_ptr<ack_reply_handler> handler(new ack_reply_handler(rpt::write_data::RPT_ID, count));
+	auto fut = handler->promise.get_future();
+		
+	add_report_handler(std::move(handler));
+
 	while (iter != iterend)
 	{
 		auto const size = std::min(iterend - iter, 0x10);
@@ -112,14 +142,16 @@ void basic_wiimote::write_data(address_space _space, address_type _address, cons
 		report<rpt::write_data> write_data;
 		write_data.set_address(_address);
 		write_data.set_size(size);
-		std::copy(iter, iter + size, write_data.data);
 		write_data.rumble = false;	// TODO: fix
 		write_data.space = _space;	// control register
 
-		send_report(write_data);
-
+		std::copy(iter, iter + size, write_data.data);
 		iter += size;
+
+		send_report(write_data);
 	}
+
+	return fut;
 }
 
 }

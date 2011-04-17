@@ -1,3 +1,25 @@
+/*
+Copyright (c) 2011 - wiimoteio project
+
+This software is provided 'as-is', without any express or implied
+warranty. In no event will the authors be held liable for any damages
+arising from the use of this software.
+
+Permission is granted to anyone to use this software for any purpose,
+including commercial applications, and to alter it and redistribute it
+freely, subject to the following restrictions:
+
+1. The origin of this software must not be misrepresented; you must not
+claim that you wrote the original software. If you use this software
+in a product, an acknowledgment in the product documentation would be
+appreciated but is not required.
+
+2. Altered source versions must be plainly marked as such, and must not be
+misrepresented as being the original software.
+
+3. This notice may not be removed or altered from any source
+distribution.
+*/
 
 #include "wiimoteio/extension.h"
 #include "wiimoteio/report.h"
@@ -15,33 +37,6 @@ template <typename C, typename F>
 void ForEach(C&& c, F&& f)
 {
 	std::for_each(c.begin(), c.end(), std::forward<F>(f));
-}
-
-int lame()
-{
-	report<rpt::ack> test1;
-	//HidReport<orpt::Status> test2;
-
-	report<rpt::camera_clock> test2;
-
-	std::cout << std::hex << (int)rpt::camera_clock::RPT_ID;
-
-	hid_report rpt(new report<rpt::camera_clock>);
-
-	std::cout << "test1 hid_cmd: " << std::hex << (int)test1.ack_id << std::endl;
-	std::cout << "test2 hid_cmd: " << (int)test2._enable << std::endl;
-
-	std::cout << "test: " << (int)test2._enable << std::endl;
-
-	extid_t nothin = extid::nothing;
-
-	//std::cout << extid::nothing;
-
-	//std::cout << "sizeof orpt::WriteData: " << sizeof(testrpt) << std::endl;
-
-
-	std::cin.get();
-	return 0;
 }
 
 int main()

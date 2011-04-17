@@ -1,3 +1,25 @@
+/*
+Copyright (c) 2011 - wiimoteio project
+
+This software is provided 'as-is', without any express or implied
+warranty. In no event will the authors be held liable for any damages
+arising from the use of this software.
+
+Permission is granted to anyone to use this software for any purpose,
+including commercial applications, and to alter it and redistribute it
+freely, subject to the following restrictions:
+
+1. The origin of this software must not be misrepresented; you must not
+claim that you wrote the original software. If you use this software
+in a product, an acknowledgment in the product documentation would be
+appreciated but is not required.
+
+2. Altered source versions must be plainly marked as such, and must not be
+misrepresented as being the original software.
+
+3. This notice may not be removed or altered from any source
+distribution.
+*/
 
 #ifndef WMLIB_BASIC_WIIMOTE_H_
 #define WMLIB_BASIC_WIIMOTE_H_
@@ -87,6 +109,21 @@ public:
 		});
 	}
 
+	// TODO: put elsewhere
+	typedef u8 ack_error;
+
+	//template <typename R>
+	//std::future<ack_error> send_acked_report(const report<R>& _report)
+	//{
+	//	std::unique_ptr<ack_reply_handler> handler(new ack_reply_handler(_report.rpt_id));
+	//	auto fut = handler->promise.get_future();
+	//	
+	//	add_report_handler(std::move(handler));
+	//	send_report(_report);
+
+	//	return fut;
+	//}
+
 	enum address_space : u8
 	{
 		space_eeprom = 0,
@@ -95,21 +132,21 @@ public:
 	};
 
 	std::future<std::vector<u8>> read_data(address_space _space, address_type _address, u16 _length);
-	void write_data(address_space _space, address_type _address, const std::vector<u8>& data);
+	std::future<ack_error> write_data(address_space _space, address_type _address, const std::vector<u8>& data);
 
 	// eeprom
 	std::future<std::vector<u8>> read_eeprom(u16 _address, u16 _length)
 	{ return read_data(space_eeprom, _address, _length); }
 
-	void write_eeprom(u16 _address, const std::vector<u8>& _data)
-	{ /*return*/ write_data(space_eeprom, _address, _data); }
+	std::future<ack_error> write_eeprom(u16 _address, const std::vector<u8>& _data)
+	{ return write_data(space_eeprom, _address, _data); }
 
 	// register
 	std::future<std::vector<u8>> read_register(address_type _address, u16 _length)
 	{ return read_data(space_register, _address, _length); }
 
-	void write_register(address_type _address, const std::vector<u8>& _data)
-	{ /*return*/ write_data(space_register, _address, _data); }
+	std::future<ack_error> write_register(address_type _address, const std::vector<u8>& _data)
+	{ return write_data(space_register, _address, _data); }
 
 private:
 	basic_wiimote(const basic_wiimote&);
@@ -118,6 +155,34 @@ private:
 	struct report_handler
 	{
 		virtual bool handle_report(const std::vector<u8>& rpt) = 0;
+	};
+
+	struct ack_reply_handler : report_handler
+	{
+		bool handle_report(const std::vector<u8>& _rpt)
+		{
+			auto reply = reinterpret_cast<const report<rpt::ack>*>(_rpt.data());
+
+			if (reply->is_sane() && reply->ack_id == rpt_id && 0 == --counter)
+			{
+				promise.set_value(reply->error);
+				return true;
+			}
+			
+			return false;
+		}
+
+		ack_reply_handler(u8 _rpt_id, int _counter)
+			: rpt_id(_rpt_id), counter(_counter)
+		{}
+
+		int counter;
+		u8 rpt_id;
+		std::promise<ack_error> promise;
+
+	private:
+		ack_reply_handler(const ack_reply_handler& other);
+		ack_reply_handler& operator=(const ack_reply_handler& other);
 	};
 
 	// data shared between threads
