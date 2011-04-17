@@ -1,0 +1,29 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 11.00
+# Visual Studio 2010
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "simple_tests", "simple_tests\simple_tests.vcxproj", "{549A908F-61A6-42D1-AAFE-1480AAD7DD55}"
+	ProjectSection(ProjectDependencies) = postProject
+		{584F2C74-904E-4EB5-80B1-08302C01487C} = {584F2C74-904E-4EB5-80B1-08302C01487C}
+	EndProjectSection
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "wiimoteio", "..\..\build\wiimoteio.vcxproj", "{584F2C74-904E-4EB5-80B1-08302C01487C}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Win32 = Debug|Win32
+		Release|Win32 = Release|Win32
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{549A908F-61A6-42D1-AAFE-1480AAD7DD55}.Debug|Win32.ActiveCfg = Debug|Win32
+		{549A908F-61A6-42D1-AAFE-1480AAD7DD55}.Debug|Win32.Build.0 = Debug|Win32
+		{549A908F-61A6-42D1-AAFE-1480AAD7DD55}.Release|Win32.ActiveCfg = Release|Win32
+		{549A908F-61A6-42D1-AAFE-1480AAD7DD55}.Release|Win32.Build.0 = Release|Win32
+		{584F2C74-904E-4EB5-80B1-08302C01487C}.Debug|Win32.ActiveCfg = Debug|Win32
+		{584F2C74-904E-4EB5-80B1-08302C01487C}.Debug|Win32.Build.0 = Debug|Win32
+		{584F2C74-904E-4EB5-80B1-08302C01487C}.Release|Win32.ActiveCfg = Release|Win32
+		{584F2C74-904E-4EB5-80B1-08302C01487C}.Release|Win32.Build.0 = Release|Win32
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+EndGlobal
