@@ -16,6 +16,7 @@
     <ClInclude Include="..\wiimoteio\data_report.h" />
     <ClInclude Include="..\wiimoteio\device.h" />
     <ClInclude Include="..\wiimoteio\extension.h" />
+    <ClInclude Include="..\wiimoteio\input_state.h" />
     <ClInclude Include="..\wiimoteio\report.h" />
     <ClInclude Include="..\wiimoteio\wiimote.h" />
     <ClInclude Include="..\wiimoteio\worker_thread.h" />

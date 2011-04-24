@@ -35,65 +35,76 @@ distribution.
 namespace wio
 {
 
+// TODO: remove
+class wiimote;
+
 // TODO: better name
 class basic_wiimote
 {
+	// TODO: remove
+	friend class wiimote;
+
 public:
 	typedef u32 address_type;
 
 	basic_wiimote()
 	{}
 
-	explicit basic_wiimote(device&& _dev)
-		: m_worker(new worker_thread)
-	{
-		m_state.reset(new shared_state);
-		m_state->dev = std::move(_dev);
-		m_state->run = true;
+	//explicit basic_wiimote(device&& _dev)
+	//	: m_worker(new worker_thread)
+	//{
+	//	m_state.reset(new shared_state);
+	//	m_state->dev = std::move(_dev);
+	//	m_state->run = true;
 
-		m_reader = std::thread(&basic_wiimote::read_thread_func, m_state.get());
-	}
+	//	m_reader = std::thread(&basic_wiimote::read_thread_func, m_state.get());
+	//}
 
-	basic_wiimote(basic_wiimote&& other)
-	{
-		*this = std::move(other);
-	}
+	//basic_wiimote(basic_wiimote&& other)
+	//{
+	//	*this = std::move(other);
+	//}
 
-	basic_wiimote& operator=(basic_wiimote&& other)
-	{
-		if (is_connected())
-			disconnect();
+	//basic_wiimote& operator=(basic_wiimote&& other)
+	//{
+	//	if (is_open())
+	//		close();
 
-		swap(other);
+	//	swap(other);
 
-		return *this;
-	}
+	//	return *this;
+	//}
 
-	~basic_wiimote()
-	{
-		if (m_state)
-		{
-			m_state->run = false;
-			m_reader.join();
-		}
-	}
+	//~basic_wiimote()
+	//{
+	//	if (m_state)
+	//	{
+	//		m_state->run = false;
+	//		m_reader.join();
+	//	}
+	//}
 
-	bool is_connected() const
-	{
-		return m_state && m_state->dev.is_connected();
-	}
+	//bool is_open() const
+	//{
+	//	return m_state && m_state->dev.is_open();
+	//}
 
-	void disconnect()
-	{
-		m_state->dev.disconnect();
-	}
+	//void close()
+	//{
+	//	m_state->dev.close();
+	//}
 
-	void swap(basic_wiimote& other)
-	{
-		m_state.swap(other.m_state);
-		m_worker.swap(other.m_worker);
-		m_reader.swap(other.m_reader);
-	}
+	//device& get_device()
+	//{
+	//	return m_state->dev;
+	//}
+
+	//void swap(basic_wiimote& other)
+	//{
+	//	m_state.swap(other.m_state);
+	//	m_worker.swap(other.m_worker);
+	//	m_reader.swap(other.m_reader);
+	//}
 
 	template <typename R>
 	void send_report(const report<R>& _report)
@@ -152,39 +163,6 @@ private:
 	basic_wiimote(const basic_wiimote&);
 	basic_wiimote& operator=(const basic_wiimote&);
 
-	struct report_handler
-	{
-		virtual bool handle_report(const std::vector<u8>& rpt) = 0;
-	};
-
-	struct ack_reply_handler : report_handler
-	{
-		bool handle_report(const std::vector<u8>& _rpt)
-		{
-			auto reply = reinterpret_cast<const report<rpt::ack>*>(_rpt.data());
-
-			if (reply->is_sane() && reply->ack_id == rpt_id && 0 == --counter)
-			{
-				promise.set_value(reply->error);
-				return true;
-			}
-			
-			return false;
-		}
-
-		ack_reply_handler(u8 _rpt_id, int _counter)
-			: rpt_id(_rpt_id), counter(_counter)
-		{}
-
-		int counter;
-		u8 rpt_id;
-		std::promise<ack_error> promise;
-
-	private:
-		ack_reply_handler(const ack_reply_handler& other);
-		ack_reply_handler& operator=(const ack_reply_handler& other);
-	};
-
 	// data shared between threads
 	struct shared_state
 	{
@@ -194,28 +172,28 @@ private:
 		//std::condition_variable handler_cond;
 		
 		// TODO: timeouts
-		std::list<std::unique_ptr<report_handler>> report_handlers;
+		//std::list<std::unique_ptr<report_handler>> report_handlers;
 
 		// TODO: ugly
 		volatile bool run;
 	};
 
-	void add_report_handler(std::unique_ptr<report_handler>&& _handler)
-	{
-		{
-		std::lock_guard<std::mutex> lk(m_state->handler_lock);
-		m_state->report_handlers.push_back(std::move(_handler));
-		}
+	//void add_report_handler(std::unique_ptr<report_handler>&& _handler)
+	//{
+	//	{
+	//	std::lock_guard<std::mutex> lk(m_state->handler_lock);
+	//	m_state->report_handlers.push_back(std::move(_handler));
+	//	}
 
-		//m_handler_condvar.second->notify_one();
-	}
+	//	//m_handler_condvar.second->notify_one();
+	//}
 
 	static void read_thread_func(shared_state*);
 
 	std::unique_ptr<worker_thread> m_worker;
 	std::thread m_reader;
 
-	std::unique_ptr<shared_state> m_state;
+	//std::unique_ptr<shared_state> m_state;
 };
 	
 }	// namespace

@@ -39,6 +39,8 @@ public:
 	//typedef std::chrono::high_resolution_clock clock;
 	typedef std::chrono::steady_clock clock;
 
+	typedef unsigned int job_type;
+
 	worker_thread()
 	{
 		m_job_thread = std::thread(std::mem_fun(&worker_thread::job_thread_func), this);
@@ -51,25 +53,48 @@ public:
 	}
 
 	template <typename F>
-	void schedule_job_at(F&& func, const clock::time_point& timept)
+	void schedule_job_at(F&& func, const clock::time_point& timept, job_type _type = 0)
 	{
 		{
 		std::lock_guard<std::mutex> lk(m_job_lock);
-		m_job_queue.insert(std::make_pair(timept, std::forward<F>(func)));
+
+		job j;
+		j.func = std::forward<F>(func);
+		j.type = _type;
+
+		m_job_queue.insert(std::make_pair(timept, std::move(j)));
 		}
+
 		m_job_cond.notify_one();
 	}
 
 	template <typename F, typename Rep, typename Per>
-	void schedule_job_in(F&& func, std::chrono::duration<Rep, Per> duration)
+	void schedule_job_in(F&& func, std::chrono::duration<Rep, Per> duration, job_type _type = 0)
 	{
-		schedule_job_at(std::forward<F>(func), clock::now() + duration);
+		schedule_job_at(std::forward<F>(func), clock::now() + duration, _type);
 	}
 
 	template <typename F>
-	void schedule_job(F&& func)
+	void schedule_job(F&& func, job_type _type = 0)
 	{
-		schedule_job_in(std::forward<F>(func), std::chrono::seconds(0));
+		schedule_job_in(std::forward<F>(func), std::chrono::seconds(0), _type);
+	}
+
+	void remove_type(job_type _type)
+	{
+		std::lock_guard<std::mutex> lk(m_job_lock);
+		
+		for (auto iter = m_job_queue.begin(); iter != m_job_queue.end(); )
+			if (_type == iter->second.type)
+				m_job_queue.erase(iter++);
+			else
+				++iter;
+	}
+
+	void remove_all()
+	{
+		std::lock_guard<std::mutex> lk(m_job_lock);
+		m_job_queue.clear();
 	}
 
 private:
@@ -95,15 +120,21 @@ private:
 
 				lk.unlock();
 
-				if (!job)
+				if (!job.func)
 					break;
 
-				job();
+				job.func();
 			}
 		}
 	}
 
-	std::multimap<clock::time_point, std::function<void()>> m_job_queue;
+	struct job
+	{
+		std::function<void()> func;
+		job_type type;
+	};
+
+	std::multimap<clock::time_point, job> m_job_queue;
 	std::thread m_job_thread;
 	std::mutex m_job_lock;
 	std::condition_variable m_job_cond;

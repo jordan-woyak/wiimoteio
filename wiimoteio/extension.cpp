@@ -50,6 +50,7 @@ struct datafmt
 	u8	accel_y_low : 2;
 	u8	accel_z_low : 2;
 };
+static_assert(6 == sizeof(datafmt), "bad size");
 }
 
 // CLASSIC_CONTROLLER
@@ -88,6 +89,7 @@ struct datafmt
 	u8	button_b : 1;
 	u8	button_zl : 1;
 };
+static_assert(6 == sizeof(datafmt), "bad size");
 }
 
 // MOTION_PLUS
@@ -112,6 +114,7 @@ struct datafmt
 	u8 : 2;
 	u8	pitch_high : 6;
 };
+static_assert(6 == sizeof(datafmt), "bad size");
 }
 
 }

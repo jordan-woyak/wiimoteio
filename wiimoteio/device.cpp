@@ -21,7 +21,8 @@ misrepresented as being the original software.
 distribution.
 */
 
-#include <system_error>
+//#include <system_error>
+#include <array>
 
 #include "device.h"
 
@@ -32,7 +33,6 @@ namespace wio
 {
 
 static const DWORD max_packet_size = 23;
-static const DWORD default_timeout = 5 * 1000;
 
 std::vector<device> find_devices(size_t max_wiimotes)
 {
@@ -111,54 +111,53 @@ size_t device::read(u8* data, size_t len)
 {
 	DWORD bytes_read = 0;
 
-	//std::vector<u8> buf(max_payload);
-	//buf[0] = 0xa1;
 	data[0] = 0xa1;
 
-	if (0 == ReadFile(m_device, &data[1], len, &bytes_read, &m_overlapped))
+	ResetEvent(m_read_overlapped.hEvent);
+
+	if (0 == ReadFile(m_device, &data[1], len - 1, &bytes_read, &m_read_overlapped))
 	{
 		auto const err = GetLastError();
 		if (ERROR_IO_PENDING == err)
 		{
-			// function is completing asynchronously
-
-			if (WAIT_OBJECT_0 == WaitForSingleObject(m_overlapped.hEvent, default_timeout))
-				GetOverlappedResult(m_device, &m_overlapped, &bytes_read, false);
-			else
-			{
-				// timed out
-				CancelIo(m_device);
-			}
-		}
-		else if (ERROR_INVALID_USER_BUFFER == err)
-		{
-			return -1;
+			if (GetOverlappedResult(m_device, &m_read_overlapped, &bytes_read, true))
+				return bytes_read + 1;
 		}
 	}
+	else
+		return bytes_read + 1;
 
-	ResetEvent(m_overlapped.hEvent);
-
-	//data.resize(bytes_read);
-	//return buff;
-
-	return bytes_read;
+	return 0;
 }
 
-bool device::write(const u8* data, size_t len)
+bool device::write(const u8* _data, size_t len)
 {
-	bool result = false;
-	DWORD bytes_written = 0;
+	DWORD bytes_written = 0;	// not really used
+
+	// TODO: lame
+	std::array<u8, max_packet_size> data;
+	std::copy(_data, _data + len, data.begin());
+
+	ResetEvent(m_write_overlapped.hEvent);
 
 	if (m_use_writefile)
-		if (WriteFile(m_device, data + 1, max_packet_size - 1, &bytes_written, &m_overlapped))
-			result = true;
+	{
+		if (0 == WriteFile(m_device, &data[1], max_packet_size - 1, &bytes_written, &m_write_overlapped))
+		{
+			auto const err = GetLastError();
+			if (ERROR_IO_PENDING == err)
+			{
+				if (GetOverlappedResult(m_device, &m_write_overlapped, &bytes_written, true))
+					return true;
+			}
+		}
 		else
-			m_use_writefile = false;	// WriteFile failed, give HidD_SetOutputReport a try
+			return true;		
 
-	if (!m_use_writefile)
-		result = (0 != HidD_SetOutputReport(m_device, const_cast<u8*>(data + 1), len - 1));
+		m_use_writefile = false;	// WriteFile failed (MS stack), give HidD_SetOutputReport a try
+	}
 
-	return result;
+	return (0 != HidD_SetOutputReport(m_device, &data[1], max_packet_size - 1));
 }
 
 }	// namespace

@@ -30,46 +30,41 @@ distribution.
 #include <functional>
 #include <thread>
 
-// TODO: remove
-using namespace wio;
-
 template <typename C, typename F>
 void ForEach(C&& c, F&& f)
 {
 	std::for_each(c.begin(), c.end(), std::forward<F>(f));
 }
 
+template <typename C, typename F>
+void ForEachDeref(C&& c, F&& f)
+{
+	auto iter = c.begin(), iterend = c.end();
+	for (; iter != iterend; ++iter)
+		f(**iter);
+}
+
 int main()
 {
-	auto found_wiimotes = find_Wiimotes(4);
+	auto found_wiimotes = wio::find_Wiimotes(4);
 	std::cout << "found " << found_wiimotes.size() << " wiimotes\n";
 	
 	if (!found_wiimotes.empty())
 	{
-		int leds;
-		while (std::cin >> leds && leds >= 0)
+		auto& wm = *found_wiimotes.front();
+		
+		for (wio::u8 leds = wio::leds::player(0); leds != wio::leds::player(4); leds <<= 1)
 		{
-			//ForEach(found_wiimotes, std::bind2nd(std::mem_fun_ref(&wio::wiimote::set_leds), leds));
-			//ForEach(found_wiimotes, std::bind2nd(std::mem_fun_ref(&wio::wiimote::set_rumble), leds & 1));
-
-			ForEach(found_wiimotes, [leds](wio::wiimote& wm)
-			{
-				wm.set_leds(leds);
-				wm.set_rumble(leds & 1);
-			});
+			wm.set_leds(leds);
+			std::this_thread::sleep_for(std::chrono::milliseconds(250));
 		}
+		wm.set_leds(wio::leds::player(0));
 
-		ForEach(found_wiimotes, [](wio::wiimote& wm)
-		{
-			//auto result = wm.basic().read_register(0xa400fa, 6);
-			auto result = wm.basic().read_eeprom(0x0000, 42);
+		wm.set_features(wio::wiimote::feat_button);
 
-			ForEach(result.get(), [](int x) { std::cout << std::setfill('0') << std::setw(2) << std::hex << x; });
-			std::cout << '\n';
-		});
-
-		//ForEach(found_wiimotes, std::mem_fun_ref(&wio::wiimote::disconnect));
-		std::cout << "disconnected\n";
+		std::cout << "led: " << (int)wm.get_leds() << '\n';
+		std::cout << "bat: " << wm.get_battery_level() << '\n';
+		std::cout << "ext: " << (int)wm.get_extension_id() << '\n';
 	}
 
 	std::cin.get();

@@ -24,36 +24,40 @@ distribution.
 #ifndef WMLIB_REPORT_H_
 #define WMLIB_REPORT_H_
 
+#include <vector>
+
 #include "common_types.h"
+
+#pragma pack(push,1)
 
 namespace wio
 {
 
 typedef u16 core_button_t;
 
-template <typename T>
-T convert_from_big_endian(const void* data, u8 size = sizeof(T))
-{
-	T n = 0;
-	// TODO:
-	return n;
-};
+//template <typename T>
+//T convert_from_big_endian(const void* data, u8 size = sizeof(T))
+//{
+//	T n = 0;
+//	// TODO:
+//	return n;
+//};
+//
+//template <typename T>
+//T convert_to_big_endian(const void* data, u8 size = sizeof(T))
+//{
+//	T n = 0;
+//	// TODO:
+//	return n;
+//};
 
-template <typename T>
-T convert_to_big_endian(const void* data, u8 size = sizeof(T))
-{
-	T n = 0;
-	// TODO:
-	return n;
-};
-
-enum : u8
-{
-	led_1 = (1 << 0),
-	led_2 = (1 << 1),
-	led_3 = (1 << 2),
-	led_4 = (1 << 3),
-};
+//enum : u8
+//{
+//	led_1 = (1 << 0),
+//	led_2 = (1 << 1),
+//	led_3 = (1 << 2),
+//	led_4 = (1 << 3),
+//};
 
 namespace hid_type
 {
@@ -61,7 +65,7 @@ enum
 {
 	handshake =		0x0,
 	set_report =	0x5,
-	data =			0xA,
+	data =			0xa,
 };
 }
 
@@ -74,16 +78,16 @@ enum
 };
 }
 
-struct hid_report
-{
-	template <typename R>
-	hid_report(R* rpt)
-		: data((u8*)rpt), size(sizeof(*rpt))
-	{}
-
-	const u8 *const data;
-	const u8 size;
-};
+//struct hid_report
+//{
+//	template <typename R>
+//	hid_report(R* rpt)
+//		: data((u8*)rpt), size(sizeof(*rpt))
+//	{}
+//
+//	const u8 *const data;
+//	const u8 size;
+//};
 
 struct hid_header
 {
@@ -104,6 +108,7 @@ struct hid_header
 
 	u8 const rpt_id;
 };
+static_assert(2 == sizeof(hid_header), "bad size");
 
 template <typename P>
 struct report : hid_header, P
@@ -115,6 +120,7 @@ struct report : hid_header, P
 			//memset(((u8*)this) + sizeof(hid_header), 0, sizeof(P));
 	}
 
+	// TODO: move to report_cast
 	bool is_sane() const
 	{
 		return hid_header::hid_cmd.type == P::HID::TYPE
@@ -122,6 +128,20 @@ struct report : hid_header, P
 			&& hid_header::rpt_id == P::RPT_ID;
 	}
 };
+
+template <typename P, typename C>
+const report<P>* report_cast(C& _rpt)
+{
+	// TODO: use == ?
+	if (_rpt.size() >= sizeof(report<P>))
+	{
+		auto ptr = reinterpret_cast<const report<P>*>(_rpt.data());
+		if (ptr->is_sane())
+			return ptr;
+	}
+
+	return nullptr;
+}
 
 template <u8 T, u8 P, u8 I>
 struct payload
@@ -137,11 +157,13 @@ struct payload
 
 template <u8 I>
 struct input_report : payload<hid_type::data, hid_param::input, I> {};
+
 template <u8 I>
 struct output_report : payload<hid_type::set_report, hid_param::output, I> {};
 
 namespace rpt
 {
+
 // 0x20: Status Information
 struct status : input_report<0x20>
 {
@@ -159,10 +181,18 @@ struct status : input_report<0x20>
 
 	u8	battery;
 };
+static_assert(6 == sizeof(status), "bad size");
 
 // 0x21: Read  Memory and Registers Data
 struct read_data_reply : input_report<0x21>
 {
+	//enum
+	//{
+	//	err_none = 0,
+	//	err_cannot_read = 7,
+	//	err_bad_address = 8,
+	//};
+
 	core_button_t	core_button;
 
 	u8	error : 4;
@@ -182,14 +212,8 @@ public:
 	{
 		return (address[0] << 0x08) | address[1];
 	}
-
-	// enum
-	enum
-	{
-		ERR_CANNOT_READ = 7,
-		ERR_BAD_ADDRESS = 8,
-	};
 };
+static_assert(21 == sizeof(read_data_reply), "bad size");
 
 // 0x22: Acknowledge output report, return function result
 struct ack : input_report<0x22>
@@ -200,21 +224,22 @@ struct ack : input_report<0x22>
 
 	u8	error;
 };
+static_assert(4 == sizeof(ack), "bad size");
 
-// 0x30-0x3f: Data reports
+// 0x30 - 0x3f: Data reports
 template <u8 D, u8 S>
 struct data : input_report<D>
 {
 	u8	_data[S];
 };
 
-// 0x13,0x14,0x19,0x1A: Enable/Disable features
+// 0x13, 0x14, 0x19, 0x1a: Enable/Disable features
 template <u8 E>
-struct enable : output_report<0x10 | E>
+struct enable_feature : output_report<0x10 | E>
 {
-	u8	rumble : 1;
-	u8 : 1;
-	u8	_enable : 1;
+	u8 rumble : 1;
+	u8 request_ack : 1;
+	u8 enable : 1;
 	u8 : 5;
 };
 
@@ -224,6 +249,7 @@ struct rumble : output_report<0x10>
 	u8	_rumble : 1;
 	u8 : 7;
 };
+static_assert(1 == sizeof(rumble), "bad size");
 
 // 0x11: Player LEDs
 struct leds : output_report<0x11>
@@ -232,6 +258,7 @@ struct leds : output_report<0x11>
 	u8 : 3;
 	u8	_leds : 4;
 };
+static_assert(1 == sizeof(leds), "bad size");
 
 // 0x12: Data Reporting mode
 struct report_mode : output_report<0x12>
@@ -243,12 +270,15 @@ struct report_mode : output_report<0x12>
 
 	u8	mode;
 };
+static_assert(2 == sizeof(report_mode), "bad size");
 
 // 0x13: IR Camera Enable Clock
-struct camera_clock : enable<0x3> {};
+struct camera_clock : enable_feature<0x3> {};
+static_assert(1 == sizeof(camera_clock), "bad size");
 
 // 0x14: Speaker Enable
-struct speaker_enable : enable<0x4> {};
+struct speaker_enable : enable_feature<0x4> {};
+static_assert(1 == sizeof(speaker_enable), "bad size");
 
 // 0x15: Status Information Request
 struct status_request : output_report<0x15>
@@ -256,13 +286,14 @@ struct status_request : output_report<0x15>
 	u8	rumble : 1;
 	u8 : 7;
 };
+static_assert(1 == sizeof(status_request), "bad size");
 
 // 0x16: Write Memory and Registers
 struct write_data : output_report<0x16>
 {
 	u8	rumble : 1;
 	u8 : 1;
-	u8	space : 2;
+	u8	space : 2;	// address space
 	u8 : 4;
 		
 private:
@@ -277,21 +308,22 @@ public:
 	{
 		address[0] = u8(_address >> 0x10);
 		address[1] = u8(_address >> 0x08);
-		address[2] = u8(_address << 0x00);		
+		address[2] = u8(_address >> 0x00);		
 	}
 
-	void set_size(u16 _size)
+	void set_size(u8 _size)
 	{
-		size = (u8)(_size - 1);
+		size = _size;
 	}
 };
+static_assert(21 == sizeof(write_data), "bad size");
 
 // 0x17: Read Memory and Registers
 struct read_data : output_report<0x17>
 {
 	u8	rumble : 1;
 	u8 : 1;
-	u8	space : 2;
+	u8	space : 2;	// address space
 	u8 : 4;
 		
 private:
@@ -303,7 +335,7 @@ public:
 	{
 		address[0] = u8(_address >> 0x10);
 		address[1] = u8(_address >> 0x08);
-		address[2] = u8(_address << 0x00);
+		address[2] = u8(_address >> 0x00);
 	}
 
 	void set_size(u16 _size)
@@ -312,6 +344,7 @@ public:
 		size[1] = u8(_size >> 0x00);
 	}
 };
+static_assert(6 == sizeof(read_data), "bad size");
 
 // 0x18: SpeakerData
 struct speaker_data : output_report<0x18>
@@ -322,14 +355,20 @@ struct speaker_data : output_report<0x18>
 
 	u8	data[20];
 };
+static_assert(21 == sizeof(speaker_data), "bad size");
 
 // 0x19: Speaker Mute
-struct speaker_mute : enable<0x9> {};
+struct speaker_mute : enable_feature<0x9> {};
+static_assert(1 == sizeof(speaker_mute), "bad size");
 
 // 0x1a: IR Camera Enable Logic
-struct camera_enable : enable<0xA> {};
-}
+struct camera_enable : enable_feature<0xa> {};
+static_assert(1 == sizeof(camera_enable), "bad size");
 
 }	// namespace
+
+}	// namespace
+
+#pragma pack(pop)
 
 #endif
