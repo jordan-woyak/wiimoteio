@@ -329,6 +329,46 @@ public:
 		job_type_speaker,
 	};
 
+	typedef u32 speaker_frequency;
+
+	speaker_frequency get_speaker_frequency() const
+	{
+		return m_state.speaker_freq;
+	};
+
+	void set_speaker_frequency(speaker_frequency freq)
+	{
+		m_state.speaker_freq = freq;
+	};
+
+	enum speaker_format : u8
+	{
+		format_adpcm = 0x00,
+		format_pcm = 0x40,
+	};
+
+	speaker_format get_speaker_format() const
+	{
+		return m_state.speaker_fmt;
+	};
+
+	void set_speaker_format(speaker_format fmt)
+	{
+		m_state.speaker_fmt = fmt;
+	};
+
+	typedef float speaker_volume;
+
+	speaker_volume get_speaker_volume() const
+	{
+		return m_state.speaker_vol;
+	};
+
+	void set_speaker_volume(speaker_volume vol)
+	{
+		m_state.speaker_vol = vol;
+	};
+
 	template <typename S>
 	void speaker_stream(S&& _strm)
 	{
@@ -368,13 +408,26 @@ public:
 		// speaker configuration
 		{
 		std::vector<u8> conf(7);
+		
+		// dunno
 		conf[0] = 0x00;
-		conf[1] = 0x00;	// format
-		conf[2] = 0xd0;	conf[3] = 0x07;	// frequency
-		//conf[4] = 0x7f; // volume
-		conf[4] = 0x19; // volume
+
+		// format
+		conf[1] = m_state.speaker_fmt;
+		bool const using_pcm = !!conf[1];
+
+		// frequency
+		u16 const freq = (using_pcm ? 12000000 : 6000000) / m_state.speaker_freq;
+		conf[2] = u8(freq >> 0x0);
+		conf[3] = u8(freq >> 0x8);
+
+		// volume
+		conf[4] = u8((using_pcm ? 0xff : 0x7f) * m_state.speaker_vol);
+		
+		// dunno
 		conf[5] = 0x0c;
 		conf[6] = 0x0e;
+
 		write_register(0xa20001, conf).wait();
 		}
 
@@ -394,7 +447,7 @@ public:
 		write_register(0xa20008, data).wait();
 
 		// commence the streamin
-		speaker_packet_number = 0;
+		speaker_sample_number = 0;
 		// TODO: hax
 		speaker_start_time = worker_thread::clock::now();
 		m_worker.schedule_job_at(std::bind(&wiimote::speaker_stream_some<decltype(stream)>, this, stream),
@@ -429,7 +482,7 @@ private:
 	wiimote& operator=(const wiimote&);
 
 	worker_thread::clock::time_point speaker_start_time;
-	size_t speaker_packet_number;
+	size_t speaker_sample_number;
 
 	template <typename S>
 	void speaker_stream_some(S stream)
@@ -442,15 +495,35 @@ private:
 		if (speaker_rpt.size)
 		{
 			send_report(speaker_rpt);
+			speaker_sample_number += speaker_rpt.size * (m_state.speaker_fmt == format_adpcm ? 2 : 1);
 
-			// TODO: hacks
-			//auto const packet_time = std::chrono::milliseconds(std::chrono::seconds(1)) / 150;
-			auto const packet_time = std::chrono::milliseconds(std::chrono::seconds(1)) / (6000000 / 0x7d0/ 20 / 2);
+#if 1	// absolute time
+			
+			// TODO: make better
+			auto packet_time = speaker_start_time +
+				std::chrono::milliseconds(std::chrono::seconds(speaker_sample_number)) / (int64_t)m_state.speaker_freq;
 
-			++speaker_packet_number;
+			// testing hax
+			//packet_time += std::chrono::milliseconds(1);
+
 			m_worker.schedule_job_at(std::bind(&wiimote::speaker_stream_some<S>, this, stream),
-				speaker_start_time + speaker_packet_number * packet_time,
+				packet_time,
 				job_type_speaker);
+
+#else	// relative time
+
+			auto delay =
+				std::chrono::milliseconds(std::chrono::seconds(speaker_sample_number)) / (int64_t)m_state.speaker_freq;
+
+			// testing hax
+			//delay += std::chrono::milliseconds(1);
+
+			m_worker.schedule_job_in(std::bind(&wiimote::speaker_stream_some<S>, this, stream),
+				delay,
+				job_type_speaker);
+
+			speaker_sample_number = 0;
+#endif
 		}
 	}
 
@@ -537,6 +610,10 @@ private:
 		std::atomic<extid_t> extid;
 		
 		std::atomic<core_button_t> button;
+	
+		volatile speaker_frequency speaker_freq;
+		volatile speaker_format speaker_fmt;
+		volatile speaker_volume speaker_vol;
 	
 	} m_state;
 

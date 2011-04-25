@@ -67,9 +67,15 @@ int main()
 		std::cout << "bat: " << wm.get_battery_level() << '\n';
 		std::cout << "ext: " << (int)wm.get_extension_id() << '\n';
 
-		std::ifstream file("rmtdump.bin", std::ios::binary);
-		wm.speaker_stream(std::move(file));
+		wm.set_speaker_format(wio::wiimote::format_adpcm);
+		wm.set_speaker_volume(0.25f);
+		wm.set_speaker_frequency(3000);
+		
+		wm.speaker_stream(std::ifstream("rmtdump.bin", std::ios::binary));
+
+		std::cout << "streamin, yo\n";
 	}
 
+	std::cout << "\n" "press <enter> to quit" "\n";
 	std::cin.get();
 }
