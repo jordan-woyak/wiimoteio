@@ -350,7 +350,7 @@ static_assert(6 == sizeof(read_data), "bad size");
 struct speaker_data : output_report<0x18>
 {
 	u8	rumble : 1;
-	u8 : 2;
+	u8  unknown: 2;
 	u8	size : 5;
 
 	u8	data[20];

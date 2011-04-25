@@ -73,6 +73,20 @@ int main()
 		
 		wm.speaker_stream(std::ifstream("rmtdump.bin", std::ios::binary));
 
+		//while (true)
+		//{
+		//	std::cout << "speaker reg: ";
+
+		//	ForEach(wm.read_register(0xa20000, 0xa).get(), [](int b)
+		//	{
+		//		std::cout << std::hex << b << ' ';
+		//	});
+
+		//	std::cout << '\n';
+		//	std::this_thread::sleep_for(std::chrono::milliseconds(250));
+		//}
+			
+
 		std::cout << "streamin, yo\n";
 	}
 

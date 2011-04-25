@@ -42,20 +42,8 @@ namespace wio
 
 class device
 {
-public:
-	typedef HANDLE native_handle_type;
-
-	typedef std::vector<u8> callback_data_type;
-	typedef std::function<void(const callback_data_type&)> callback_type;
-
-	device()
-		: m_device(native_handle_type())
-		, m_use_writefile(true)
-	{}
-
-	explicit device(native_handle_type dev_handle)
-		: m_device(dev_handle)
-		, m_use_writefile(true)
+private:
+	void init_overlaps()
 	{
 		m_read_overlapped.hEvent = CreateEvent(nullptr, true, false, nullptr);
 		m_read_overlapped.Offset = 0;
@@ -66,19 +54,41 @@ public:
 		m_write_overlapped.OffsetHigh = 0;
 	}
 
+public:
+	typedef HANDLE native_handle_type;
+
+	typedef std::vector<u8> callback_data_type;
+	typedef std::function<void(const callback_data_type&)> callback_type;
+
+	device()
+		: m_device(native_handle_type())
+		, m_use_writefile(true)
+	{
+		init_overlaps();
+	}
+
+	explicit device(native_handle_type dev_handle)
+		: m_device(dev_handle)
+		, m_use_writefile(true)
+	{
+		init_overlaps();
+	}
+
 	device(device&& other)
 		: m_device(native_handle_type())
 		, m_use_writefile(true)
 	{
-		*this = std::move(other);
+		init_overlaps();
+		swap(other);
 	}
 
 	~device()
 	{
-		callback_read(nullptr);
-
 		if (is_open())
 			close();
+
+		CloseHandle(m_read_overlapped.hEvent);
+		CloseHandle(m_write_overlapped.hEvent);
 	}
 
 	device& operator=(device&& other)
@@ -95,15 +105,15 @@ public:
 
 	void close()
 	{
+		callback_read(nullptr);
+
 		// TODO: safe?
+		// TODO: vista+
 		CancelIoEx(m_device, &m_read_overlapped);
 		//CancelIoEx(m_device, &m_write_overlapped);
 
 		CloseHandle(m_device);
 		m_device = native_handle_type();
-
-		CloseHandle(m_read_overlapped.hEvent);
-		CloseHandle(m_write_overlapped.hEvent);
 	}
 
 	size_t read(u8* data, size_t length);

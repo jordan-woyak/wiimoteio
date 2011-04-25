@@ -89,6 +89,10 @@ public:
 
 		m_device.callback_read([this](const device::callback_data_type& _rpt)
 		{
+			// hax
+			if (0x22 == _rpt[1] && 0x18 == _rpt[4])
+				printf("speaker data ack error: %d\n", (int)_rpt[5]);
+
 			std::lock_guard<std::mutex> lk(m_read_handler_lock);
 
 			// process report
@@ -487,17 +491,37 @@ private:
 	template <typename S>
 	void speaker_stream_some(S stream)
 	{
-		report<rpt::speaker_data> speaker_rpt;
-		speaker_rpt.rumble = m_state.rumble.load();
-		stream->read(reinterpret_cast<char*>(speaker_rpt.data), 20);
-		speaker_rpt.size = stream->gcount();
+		//if (m_state.speaker_data_ack.valid() &&
+		//	std::future_status::ready == m_state.speaker_data_ack.wait_until(std::chrono::steady_clock::now()))
+		//	stream->seekg(-20, std::ios::cur);
 
-		if (speaker_rpt.size)
+		//if (!m_state.speaker_data_ack.valid() ||
+		//	std::future_status::timeout == m_state.speaker_data_ack.wait_until(std::chrono::steady_clock::now()))
+		//{
+			// read up to 20 more bytes
+			stream->read(reinterpret_cast<char*>(m_state.speaker_report.data), 20);
+			m_state.speaker_report.size = stream->gcount();
+			m_state.speaker_report.unknown = 0;//3;
+		//}
+		//else
+		//{
+		//	printf("got bad ack\n");
+		//	//return;
+		//	//m_state.speaker_report.unknown = 2;
+		//}
+
+		m_state.speaker_report.rumble = m_state.rumble.load();
+
+		if (m_state.speaker_report.size)
 		{
-			send_report(speaker_rpt);
-			speaker_sample_number += speaker_rpt.size * (m_state.speaker_fmt == format_adpcm ? 2 : 1);
+			//std::unique_ptr<ack_reply_handler> handler(new ack_reply_handler(rpt::speaker_data::RPT_ID));
+			//m_state.speaker_data_ack = handler->promise.get_future();
+			//add_report_handler(std::move(handler));	// TODO: leaking
 
-#if 1	// absolute time
+			send_report(m_state.speaker_report);
+			speaker_sample_number += m_state.speaker_report.size * (m_state.speaker_fmt == format_adpcm ? 2 : 1);
+
+#if 0	// absolute time
 			
 			// TODO: make better
 			auto packet_time = speaker_start_time +
@@ -516,7 +540,7 @@ private:
 				std::chrono::milliseconds(std::chrono::seconds(speaker_sample_number)) / (int64_t)m_state.speaker_freq;
 
 			// testing hax
-			//delay += std::chrono::milliseconds(1);
+			//delay += std::chrono::milliseconds(-5);
 
 			m_worker.schedule_job_in(std::bind(&wiimote::speaker_stream_some<S>, this, stream),
 				delay,
@@ -614,6 +638,9 @@ private:
 		volatile speaker_frequency speaker_freq;
 		volatile speaker_format speaker_fmt;
 		volatile speaker_volume speaker_vol;
+
+		std::future<ack_error> speaker_data_ack;
+		report<rpt::speaker_data> speaker_report;
 	
 	} m_state;
 
