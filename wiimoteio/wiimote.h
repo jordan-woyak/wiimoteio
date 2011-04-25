@@ -92,29 +92,17 @@ public:
 			std::lock_guard<std::mutex> lk(m_read_handler_lock);
 
 			// process report
-			auto iter = m_read_handlers.begin(), iterend = m_read_handlers.end();
-			while (iter != iterend)
+			auto iter = m_read_handlers.begin();
+			while (iter != m_read_handlers.end())
+			{
 				if ((*iter)->handle_report(_rpt))
 					iter = m_read_handlers.erase(iter);
 				else
 					++iter;
+			}
 		});
 
-		struct status_handler : specific_report_handler<rpt::status>
-		{
-			bool handle_report(const report<rpt::status>& status)
-			{
-				func(status);
-
-				return false;
-			}
-
-			std::function<void(const report<rpt::status>& status)> func;
-		};
-
-		std::unique_ptr<status_handler> handler(new status_handler);
-
-		handler->func = [this](const report<rpt::status>& status)
+		auto status_handler = [this](const report<rpt::status>& status) -> bool
 		{
 			printf("got status\n");
 			m_state.battery.store(status.battery);
@@ -139,9 +127,15 @@ public:
 
 			//	m_state.extid.store(val);
 			}
+
+			return false;
 		};
 
-		add_report_handler(std::move(handler));
+		// TODO: make a member function
+		add_specific_report_handler<rpt::status>(std::move(status_handler));
+
+		add_report_handler(std::bind(&wiimote::handle_button_report, this, std::placeholders::_1));
+		add_report_handler(std::bind(&wiimote::handle_data_report, this, std::placeholders::_1));
 
 		m_worker.schedule_job([this]
 		{
@@ -330,6 +324,83 @@ public:
 		}
 	}
 
+	enum : worker_thread::job_type
+	{
+		job_type_speaker,
+	};
+
+	template <typename S>
+	void speaker_stream(S&& _strm)
+	{
+		auto stream = std::make_shared<typename std::remove_all_extents<S>::type>(std::forward<S>(_strm));
+
+		// speaker initialization
+
+		// disable+enable speaker
+		{
+		report<rpt::speaker_enable> enb;
+		enb.rumble = m_state.rumble.load();
+		enb.request_ack = true;
+		enb.enable = true;
+		send_report(enb);
+		}
+
+		std::this_thread::sleep_for(std::chrono::milliseconds(50));	// hax
+
+		// mute speaker
+		{
+		report<rpt::speaker_mute> mut;
+		mut.rumble = m_state.rumble.load();
+		mut.request_ack = true;
+		mut.enable = true;
+		send_report(mut);
+		}
+
+		std::this_thread::sleep_for(std::chrono::milliseconds(50));	// hax
+
+		// some nonsense
+		std::vector<u8> data(1);
+		data[0] = 0x01;
+		write_register(0xa20009, data).wait();
+		data[0] = 0x80;
+		write_register(0xa20001, data).wait();
+
+		// speaker configuration
+		{
+		std::vector<u8> conf(7);
+		conf[0] = 0x00;
+		conf[1] = 0x00;	// format
+		conf[2] = 0xd0;	conf[3] = 0x07;	// frequency
+		//conf[4] = 0x7f; // volume
+		conf[4] = 0x19; // volume
+		conf[5] = 0x0c;
+		conf[6] = 0x0e;
+		write_register(0xa20001, conf).wait();
+		}
+
+		// unmute speaker
+		{
+		report<rpt::speaker_mute> mut;
+		mut.rumble = m_state.rumble.load();
+		mut.request_ack = true;
+		mut.enable = false;
+		send_report(mut);
+		}
+
+		std::this_thread::sleep_for(std::chrono::milliseconds(50));	// hax
+
+		// more nonsense
+		data[0] = 0x01;
+		write_register(0xa20008, data).wait();
+
+		// commence the streamin
+		speaker_packet_number = 0;
+		// TODO: hax
+		speaker_start_time = worker_thread::clock::now();
+		m_worker.schedule_job_at(std::bind(&wiimote::speaker_stream_some<decltype(stream)>, this, stream),
+			speaker_start_time, job_type_speaker);
+	}
+
 	// TODO: asyncronous
 	extid_t get_extension_id()
 	{
@@ -356,6 +427,32 @@ public:
 private:
 	wiimote(const wiimote&);
 	wiimote& operator=(const wiimote&);
+
+	worker_thread::clock::time_point speaker_start_time;
+	size_t speaker_packet_number;
+
+	template <typename S>
+	void speaker_stream_some(S stream)
+	{
+		report<rpt::speaker_data> speaker_rpt;
+		speaker_rpt.rumble = m_state.rumble.load();
+		stream->read(reinterpret_cast<char*>(speaker_rpt.data), 20);
+		speaker_rpt.size = stream->gcount();
+
+		if (speaker_rpt.size)
+		{
+			send_report(speaker_rpt);
+
+			// TODO: hacks
+			//auto const packet_time = std::chrono::milliseconds(std::chrono::seconds(1)) / 150;
+			auto const packet_time = std::chrono::milliseconds(std::chrono::seconds(1)) / (6000000 / 0x7d0/ 20 / 2);
+
+			++speaker_packet_number;
+			m_worker.schedule_job_at(std::bind(&wiimote::speaker_stream_some<S>, this, stream),
+				speaker_start_time + speaker_packet_number * packet_time,
+				job_type_speaker);
+		}
+	}
 
 	template <typename R>
 	void send_report(const report<R>& _report)
@@ -438,6 +535,8 @@ private:
 		std::atomic<bool> rumble;
 		std::atomic<u8> battery;
 		std::atomic<extid_t> extid;
+		
+		std::atomic<core_button_t> button;
 	
 	} m_state;
 
@@ -451,7 +550,45 @@ private:
 		//m_handler_condvar.second->notify_one();
 	}
 
-	void read_thread_func();
+	void add_report_handler(const std::function<bool(const std::vector<u8>&)>& _func)
+	{
+		struct func_handler : report_handler
+		{
+			bool handle_report(const std::vector<u8>& _rpt)
+			{
+				return func(_rpt);
+			}
+
+			std::function<bool(const std::vector<u8>&)> func;
+		};
+
+		std::unique_ptr<func_handler> handler(new func_handler);
+		handler->func = _func;
+
+		add_report_handler(std::move(handler));
+	}
+
+	template <typename R>
+	void add_specific_report_handler(const std::function<bool(const report<R>&)>& _func)
+	{
+		struct func_handler : specific_report_handler<R>
+		{
+			bool handle_report(const report<R>& _rpt)
+			{
+				return func(_rpt);
+			}
+
+			std::function<bool(const report<R>&)> func;
+		};
+
+		std::unique_ptr<func_handler> handler(new func_handler);
+		handler->func = _func;
+
+		add_report_handler(std::move(handler));
+	}
+
+	bool wiimote::handle_button_report(const std::vector<u8>& _rpt);
+	bool wiimote::handle_data_report(const std::vector<u8>& _rpt);
 
 	//struct
 	//{
@@ -470,6 +607,28 @@ private:
 };
 
 std::vector<std::unique_ptr<wiimote>> find_Wiimotes(size_t max_wiimotes);
+
+inline bool wiimote::handle_button_report(const std::vector<u8>& _rpt)
+{
+	if (_rpt.size() >= 4 && _rpt[1] != rptmode::ext21)
+	{
+		//printf("button\n");
+		m_state.button.store(*reinterpret_cast<const core_button_t*>(&_rpt[2]));
+		//printf("%d", m_state.button.load());
+	}
+
+	return false;
+}
+
+inline bool wiimote::handle_data_report(const std::vector<u8>& _rpt)
+{
+	if (!(_rpt.size() >= 4 && _rpt[1] != rptmode::ext21))
+		return false;
+
+	//printf("data\n");
+
+	return false;
+}
 
 }	// namespace
 

@@ -29,6 +29,7 @@ distribution.
 #include <iomanip>
 #include <functional>
 #include <thread>
+#include <fstream>
 
 template <typename C, typename F>
 void ForEach(C&& c, F&& f)
@@ -60,11 +61,14 @@ int main()
 		}
 		wm.set_leds(wio::leds::player(0));
 
-		wm.set_features(wio::wiimote::feat_button);
+		//wm.set_features(wio::wiimote::feat_button);
 
 		std::cout << "led: " << (int)wm.get_leds() << '\n';
 		std::cout << "bat: " << wm.get_battery_level() << '\n';
 		std::cout << "ext: " << (int)wm.get_extension_id() << '\n';
+
+		std::ifstream file("rmtdump.bin", std::ios::binary);
+		wm.speaker_stream(std::move(file));
 	}
 
 	std::cin.get();
