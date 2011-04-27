@@ -107,7 +107,7 @@ std::vector<device> find_devices(size_t max_wiimotes)
 	return found_wiimotes;
 }
 
-size_t device::read(u8* data, size_t len)
+size_t device::read(char_type* data, size_t len)
 {
 	DWORD bytes_read = 0;
 
@@ -130,12 +130,12 @@ size_t device::read(u8* data, size_t len)
 	return 0;
 }
 
-bool device::write(const u8* _data, size_t len)
+bool device::write(const char_type* _data, size_t len)
 {
 	DWORD bytes_written = 0;	// not really used
 
 	// TODO: lame
-	std::array<u8, max_packet_size> data;
+	std::array<char_type, max_packet_size> data;
 	std::copy(_data, _data + len, data.begin());
 
 	ResetEvent(m_write_overlapped.hEvent);
@@ -144,17 +144,11 @@ bool device::write(const u8* _data, size_t len)
 	{
 		if (0 == WriteFile(m_device, &data[1], max_packet_size - 1, &bytes_written, &m_write_overlapped))
 		{
-			auto const err = GetLastError();
-			if (ERROR_IO_PENDING == err)
-			{
-				if (GetOverlappedResult(m_device, &m_write_overlapped, &bytes_written, true))
-					return true;
-			}
+			// BlueSoleil always returns true, give HidD_SetOutputReport a try (MS stack)
+			m_use_writefile = false;
 		}
 		else
-			return true;		
-
-		m_use_writefile = false;	// WriteFile failed (MS stack), give HidD_SetOutputReport a try
+			return true;
 	}
 
 	return (0 != HidD_SetOutputReport(m_device, &data[1], max_packet_size - 1));

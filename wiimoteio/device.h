@@ -26,6 +26,7 @@ distribution.
 
 extern "C"
 {
+#define NOMINMAX
 #include <Rpc.h>
 #include <Setupapi.h>
 #include <Hidsdi.h>
@@ -56,8 +57,9 @@ private:
 
 public:
 	typedef HANDLE native_handle_type;
+	typedef u8 char_type;
 
-	typedef std::vector<u8> callback_data_type;
+	typedef std::vector<char_type> callback_data_type;
 	typedef std::function<void(const callback_data_type&)> callback_type;
 
 	device()
@@ -116,8 +118,8 @@ public:
 		m_device = native_handle_type();
 	}
 
-	size_t read(u8* data, size_t length);
-	bool write(const u8* data, size_t length);
+	size_t read(char_type* data, size_t length);
+	bool write(const char_type* data, size_t length);
 
 	void callback_read(const callback_type& callback)
 	{
@@ -175,7 +177,7 @@ private:
 				data.push_back(0xa1);
 			}
 
-			std::vector<u8> data;
+			callback_data_type data;
 			const callback_type& callback;
 
 		} data(callback);
