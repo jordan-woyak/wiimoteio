@@ -24,72 +24,94 @@ distribution.
 #ifndef WMLIB_DATA_REPORT_H_
 #define WMLIB_DATA_REPORT_H_
 
-#include <map>
-
-#include "common_types.h"
+#include "report.h"
 
 namespace wio
 {
 
+#pragma pack(push,1)
+
 namespace rpt
 {
-enum
+namespace data
 {
-	/*rpt_*/ none =		0,
 
-	/*rpt_*/ button =	(1 << 0),
-	/*rpt_*/ accel =	(1 << 1),
-	/*rpt_*/ ext =		(1 << 2),
-	/*rpt_*/ ir =		(1 << 3),
-	/*rpt_*/ gyro =		(1 << 4),
-
-	/*rpt_*/ all =		button | accel | ext | ir | gyro,
+struct button_base
+{
+	core_button_t button;
 };
-}
 
-namespace rptmode
+// 0x30: Button
+struct button : input_report<0x30>, button_base {};
+static_assert(2 == sizeof(button), "bad size");
+
+struct accel_base
 {
-enum : u8
-{
-	/*rptmode_*/ button =		0x30,
-	/*rptmode_*/ button_accel,
-	/*rptmode_*/ button_ext8,
-	/*rptmode_*/ button_accel_ir12,
-	/*rptmode_*/ button_ext19,
-	/*rptmode_*/ button_accel_ext16,
-	/*rptmode_*/ button_ir10_ext9,
-	/*rptmode_*/ button_accel_ir10_ext9 = 0x3d,
-	/*rptmode_*/ ext21,
-	/*rptmode_*/ button_accel_ir36,
+	struct
+	{
+		u8 x, y, z;
+	} accel;
 };
-}
 
-// TODO: remove
-//using namespace rpt;
+// 0x31: Button, Accel
+struct button_accel : input_report<0x31>, button_base, accel_base {};
+static_assert(5 == sizeof(button_accel), "bad size");
 
-//const std::pair<u8, u8> rpt_features[] =
-//{
-//	std::make_pair(button,				0x30),
-//	std::make_pair(button | accel,		0x31),
-//	std::make_pair(button | ext,		0x32),
-//	std::make_pair(button | gyro,		0x32),
-//	std::make_pair(button | ir,			0x32),
-//
-//
-//	std::make_pair(0x30, button),
-//	std::make_pair(0x31, button | accel),
-//	std::make_pair(0x32, button | ext),
-//	std::make_pair(0x33, button | accel | ir),
-//	std::make_pair(0x34, button | ext),
-//	std::make_pair(0x35, button | accel | ext),
-//	std::make_pair(0x36, button | ir | ext),
-//	std::make_pair(0x37, button | accel | ir | ext),
-//	std::make_pair(0x3d, ext),
-//	std::make_pair(0x3e, button | accel | ir | gyro),
-//	std::make_pair(0x3f, button | accel | ir | gyro),
-//};
+// 0x32: Button, Ext8
+struct button_ext8 : input_report<0x32>, button_base
+{
+	u8 ext[8];
+};
+static_assert(10 == sizeof(button_ext8), "bad size");
 
-//std::map<u8, u8> rpt_features_map(rpt_features, rpt_features + sizeof(rpt_features));
+// 0x33: Button, Accel, Ir12
+struct button_accel_ir12 : input_report<0x33>, button_base, accel_base
+{
+	u8 ir[12];	// TODO:
+};
+static_assert(17 == sizeof(button_accel_ir12), "bad size");
+
+// 0x34: Button, Ext19
+struct button_ext19 : input_report<0x34>, button_base
+{
+	u8 ext[19];
+};
+static_assert(21 == sizeof(button_ext19), "bad size");
+
+// 0x35: Button, Accel, Ext16
+struct button_accel_ext16 : input_report<0x35>, button_base, accel_base
+{
+	u8 ext[16];
+};
+static_assert(21 == sizeof(button_accel_ext16), "bad size");
+
+// 0x36: Button, Ir10, Ext9
+struct button_ir10_ext9 : input_report<0x36>, button_base
+{
+	u8 ir[10];	// TODO:
+	u8 ext[9];
+};
+static_assert(21 == sizeof(button_ir10_ext9), "bad size");
+
+// 0x37: Button, Accel, Ir10, Ext6
+struct button_accel_ir10_ext6 : input_report<0x37>, button_base, accel_base
+{
+	u8 ir[10];	// TODO:
+	u8 ext[6];
+};
+static_assert(21 == sizeof(button_accel_ir10_ext6), "bad size");
+
+// 0x3d: Ext21
+struct ext21 : input_report<0x3d>
+{
+	u8 ext[21];
+};
+static_assert(21 == sizeof(ext21), "bad size");
+
+}	// namespace
+}	// namespace
+
+#pragma pack(pop)
 
 }	// namespace
 

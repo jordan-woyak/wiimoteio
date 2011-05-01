@@ -46,12 +46,6 @@ std::vector<std::unique_ptr<wiimote>> find_Wiimotes(size_t max_wiimotes)
 
 std::future<std::vector<u8>> wiimote::read_data(address_space _space, address_type _address, u16 _length)
 {
-	report<rpt::read_data> rpt;
-	rpt.set_address(_address);
-	rpt.rumble = m_state.rumble.load();	// TODO: fix
-	rpt.set_size(_length);
-	rpt.space = _space;
-
 	struct read_reply_handler : specific_report_handler<rpt::read_data_reply>
 	{
 		bool handle_report(const report<rpt::read_data_reply>& reply)
@@ -107,7 +101,16 @@ std::future<std::vector<u8>> wiimote::read_data(address_space _space, address_ty
 	auto fut = handler->promise.get_future();
 
 	add_report_handler(std::move(handler));
-	schedule_report(rpt);
+
+	m_worker.schedule_job([this, _address, _length, _space]
+	{
+		report<rpt::read_data> rpt;
+		rpt.set_address(_address);
+		rpt.set_size(_length);
+		rpt.space = _space;
+
+		send_report(rpt);
+	});
 
 	return fut;
 }
@@ -121,9 +124,9 @@ std::future<wiimote::ack_error> wiimote::write_data(address_space _space, addres
 	auto iter = _data.begin(), iterend = _data.end();
 	auto const count = (_data.size() + 0xf) / max_write;
 
-	std::unique_ptr<ack_reply_handler> handler(new ack_reply_handler(rpt::write_data::RPT_ID, count));
+	std::unique_ptr<ack_reply_handler<rpt::write_data>> handler(new ack_reply_handler<rpt::write_data>(count));
 	auto fut = handler->promise.get_future();
-		
+	
 	add_report_handler(std::move(handler));
 
 	while (iter != iterend)
@@ -138,7 +141,6 @@ std::future<wiimote::ack_error> wiimote::write_data(address_space _space, addres
 			report<rpt::write_data> write_data;
 			write_data.set_address(_address);
 			write_data.set_size(size);
-			write_data.rumble = m_state.rumble.load();
 			write_data.space = _space;
 			std::copy(data.begin(), data.end(), write_data.data);
 

@@ -21,6 +21,8 @@ misrepresented as being the original software.
 distribution.
 */
 
+#include "impl/wiimote_speaker.h"
+
 #ifndef WMLIB_WIIMOTE_H_
 #define WMLIB_WIIMOTE_H_
 
@@ -53,7 +55,7 @@ typedef std::pair<std::array<u8, 9>, std::array<u8, 2>> ir_sensitivity;
 namespace leds
 {
 
-enum
+enum : u8
 {
 	_0000, _0001, _0010, _0011,
 	_0100, _0101, _0110, _0111,
@@ -80,7 +82,9 @@ public:
 	explicit wiimote(device&& _dev)
 		//: m_device(std::move(_dev))
 	{
+		m_state.remote_rumble = false;
 		m_state.rumble.store(false);
+
 		m_state.battery.store(0);
 		m_state.leds.store(0);
 		m_state.extid.store(extid::nothing);
@@ -96,8 +100,7 @@ public:
 			std::lock_guard<std::mutex> lk(m_read_handler_lock);
 
 			// process report
-			auto iter = m_read_handlers.begin();
-			while (iter != m_read_handlers.end())
+			for (auto iter = m_read_handlers.begin(); iter != m_read_handlers.end();)
 			{
 				if ((*iter)->handle_report(_rpt))
 					iter = m_read_handlers.erase(iter);
@@ -138,19 +141,14 @@ public:
 		// TODO: make a member function
 		add_specific_report_handler<rpt::status>(std::move(status_handler));
 
-		add_report_handler(std::bind(&wiimote::handle_button_report, this, std::placeholders::_1));
-		add_report_handler(std::bind(&wiimote::handle_data_report, this, std::placeholders::_1));
+		// TODO: only add when features are enabled
+		add_report_handler(std::bind(&wiimote::handle_button_data_report, this, std::placeholders::_1));
+		add_report_handler(std::bind(&wiimote::handle_accel_data_report, this, std::placeholders::_1));
 
 		m_worker.schedule_job([this]
 		{
 			report<rpt::status_request> status_rq;
-			status_rq.rumble = m_state.rumble.load();
-			
-			// TODO: testing
 			send_report(status_rq);
-			//std::this_thread::sleep_for(std::chrono::milliseconds(50));
-			//send_report(status_rq);
-			//send_report(status_rq);
 		});
 	}
 
@@ -192,9 +190,8 @@ public:
 		{
 			//m_state.leds.store(_leds);
 
-			report<rpt::leds> leds;
-			leds.rumble = m_state.rumble.load();
-			leds._leds = _leds;
+			report<rpt::player_leds> leds;
+			leds.leds = _leds;
 			send_report(leds);
 		});
 
@@ -236,8 +233,6 @@ public:
 	
 	battery_level get_battery_level() const
 	{
-		//return (battery_level)m_state.battery.load() / std::numeric_limits<u8>::max();
-
 		return (battery_level)m_state.battery.load() / 0xc0;
 	}
 
@@ -248,7 +243,6 @@ public:
 	void set_speaker_mute(bool _mute)
 	{
 		//report<rpt::speaker_mute> mute_rpt;
-		//mute_rpt.rumble = false;	// TODO:
 		//mute_rpt.enable = _mute;
 
 		//m_wiimote.send_report(mute_rpt);
@@ -257,7 +251,6 @@ public:
 	void request_status()
 	{
 		//report<rpt::status_request> request;
-		//request.rumble = m_rumble;
 
 		//m_wiimote.send_report(request);
 	}
@@ -272,7 +265,6 @@ public:
 	{
 		space_eeprom = 0,
 		space_register = 1,
-		//space_eeprom_alt = 2,
 	};
 
 	std::future<std::vector<u8>> read_data(address_space _space, address_type _address, u16 _length);
@@ -312,20 +304,67 @@ public:
 
 	void set_features(features feats)
 	{
-		if (feats & feat_button)
+		struct
 		{
-			m_worker.schedule_job([this]
-			{
-				report<rpt::report_mode> mode_rpt;
-				//mode_rpt.continuous = true;
-				mode_rpt.continuous = false;
-				mode_rpt.rumble = m_state.rumble.load();
-				mode_rpt.mode = rptmode::button;
-				//mode_rpt.mode = 0;
+			u8 mode;
+			u8 feats;
+				
+		} static const modes[] =
+		{
+			{0x30, feat_button},
+			{0x31, feat_button | feat_accel},
+			{0x32, feat_button | feat_ext},
+			{0x33, feat_button | feat_accel | feat_ir},
+			{0x35, feat_button | feat_accel | feat_ext},
+			{0x36, feat_button | feat_ir | feat_ext},
+			{0x37, feat_button | feat_accel | feat_ir | feat_ext},
+		};
 
-				send_report(mode_rpt);
-			});
+		u8 mode = 0;
+
+		for (auto m = modes; m != (modes + sizeof(modes)/sizeof(*modes)); ++m)
+			if ((m->feats & feats) == feats)
+			{
+				mode = m->mode;
+				break;
+			}
+
+		// get accel calibration data
+		if (feats & feat_accel)
+		{
+			auto data = read_accel_calibration_data().get();
+			if (data.empty())
+				return;		// TODO: error handling
+
+			// TODO: check checksum
+
+			// zero G
+			m_input_state.accel[0].zero = data[0] << 2;
+			m_input_state.accel[1].zero = data[1] << 2;
+			m_input_state.accel[2].zero = data[2] << 2;
+
+			set_bits(m_input_state.accel[0].zero, 0, 2, get_bits(data[3], 4, 2));
+			set_bits(m_input_state.accel[1].zero, 0, 2, get_bits(data[3], 2, 2));
+			set_bits(m_input_state.accel[2].zero, 0, 2, get_bits(data[3], 0, 2));
+
+			// one G
+			m_input_state.accel[0].pos = data[4] << 2;
+			m_input_state.accel[1].pos = data[5] << 2;
+			m_input_state.accel[2].pos = data[6] << 2;
+
+			set_bits(m_input_state.accel[0].pos, 0, 2, get_bits(data[7], 4, 2));
+			set_bits(m_input_state.accel[1].pos, 0, 2, get_bits(data[7], 2, 2));
+			set_bits(m_input_state.accel[2].pos, 0, 2, get_bits(data[7], 0, 2));
 		}
+
+		m_worker.schedule_job([this, mode]
+		{
+			report<rpt::report_mode> mode_rpt;
+			mode_rpt.continuous = true;
+			mode_rpt.mode = mode;
+
+			send_report(mode_rpt);
+		});
 	}
 
 	enum : worker_thread::job_type
@@ -333,129 +372,67 @@ public:
 		job_type_speaker,
 	};
 
-	typedef u32 speaker_frequency;
+	typedef u32 speaker_rate_type;
 
-	speaker_frequency get_speaker_frequency() const
+	speaker_rate_type get_speaker_rate() const
 	{
-		return m_state.speaker_freq;
+		return m_state.speaker_rate;
 	};
 
-	void set_speaker_frequency(speaker_frequency freq)
+	void set_speaker_rate(speaker_rate_type _rate)
 	{
-		m_state.speaker_freq = freq;
+		m_state.speaker_rate = _rate;
 	};
 
-	enum speaker_format : u8
+	enum speaker_format_type : u8
 	{
 		format_adpcm = 0x00,
 		format_pcm = 0x40,
 	};
 
-	speaker_format get_speaker_format() const
+	speaker_format_type get_speaker_format() const
 	{
 		return m_state.speaker_fmt;
 	};
 
-	void set_speaker_format(speaker_format fmt)
+	void set_speaker_format(speaker_format_type fmt)
 	{
 		m_state.speaker_fmt = fmt;
 	};
 
-	typedef float speaker_volume;
+	typedef float speaker_volume_type;
 
-	speaker_volume get_speaker_volume() const
+	speaker_volume_type get_speaker_volume() const
 	{
 		return m_state.speaker_vol;
 	};
 
-	void set_speaker_volume(speaker_volume vol)
+	void set_speaker_volume(speaker_volume_type vol)
 	{
 		m_state.speaker_vol = vol;
 	};
 
 	template <typename S>
-	void speaker_stream(S&& _strm)
+	void speaker_stream(S&& _strm);
+
+	struct input_state
 	{
-		auto stream = std::make_shared<typename std::remove_all_extents<S>::type>(std::forward<S>(_strm));
+		// TODO: assumed atomic
+		core_button_t button;
+		//std::shared_ptr<std::vector<u8>> last_data_report;
 
-		// speaker initialization
-
-		// disable+enable speaker
-		{
-		report<rpt::speaker_enable> enb;
-		enb.rumble = m_state.rumble.load();
-		enb.request_ack = true;
-		enb.enable = true;
-		send_report(enb);
-		}
-
-		std::this_thread::sleep_for(std::chrono::milliseconds(50));	// hax
-
-		// mute speaker
-		{
-		report<rpt::speaker_mute> mut;
-		mut.rumble = m_state.rumble.load();
-		mut.request_ack = true;
-		mut.enable = true;
-		send_report(mut);
-		}
-
-		std::this_thread::sleep_for(std::chrono::milliseconds(50));	// hax
-
-		// some nonsense
-		std::vector<u8> data(1);
-		data[0] = 0x01;
-		write_register(0xa20009, data).wait();
-		data[0] = 0x80;
-		write_register(0xa20001, data).wait();
-
-		// speaker configuration
-		{
-		std::vector<u8> conf(7);
 		
-		// dunno
-		conf[0] = 0x00;
+		std::array<calibrated_int<u16>, 3> accel;
 
-		// format
-		conf[1] = m_state.speaker_fmt;
-		bool const using_pcm = !!conf[1];
-
-		// frequency
-		u16 const freq = (using_pcm ? 12000000 : 6000000) / m_state.speaker_freq;
-		conf[2] = u8(freq >> 0x0);
-		conf[3] = u8(freq >> 0x8);
-
-		// volume
-		conf[4] = u8((using_pcm ? 0xff : 0x7f) * m_state.speaker_vol);
-		
-		// dunno
-		conf[5] = 0x0c;
-		conf[6] = 0x0e;
-
-		write_register(0xa20001, conf).wait();
-		}
-
-		// unmute speaker
+		const std::array<calibrated_int<u16>, 3>& get_accel() const
 		{
-		report<rpt::speaker_mute> mut;
-		mut.rumble = m_state.rumble.load();
-		mut.request_ack = true;
-		mut.enable = false;
-		send_report(mut);
+			return accel;
 		}
+	};
 
-		std::this_thread::sleep_for(std::chrono::milliseconds(50));	// hax
-
-		// more nonsense
-		data[0] = 0x01;
-		write_register(0xa20008, data).wait();
-
-		// commence the streamin
-		speaker_sample_number = 0;
-		// TODO: hax
-		speaker_start_time = worker_thread::clock::now();
-		m_worker.schedule_job_at(std::bind(&wiimote::speaker_stream_some<decltype(stream)>, this, stream),
-			speaker_start_time, job_type_speaker);
+	const input_state& get_input_state()
+	{
+		return m_input_state;
 	}
 
 	// TODO: asyncronous
@@ -489,86 +466,17 @@ private:
 	size_t speaker_sample_number;
 
 	template <typename S>
-	void speaker_stream_some(S stream)
-	{
-		//if (m_state.speaker_data_ack.valid() &&
-		//	std::future_status::ready == m_state.speaker_data_ack.wait_until(std::chrono::steady_clock::now()))
-		//	stream->seekg(-20, std::ios::cur);
+	void speaker_stream_some(S stream);
 
-		//if (!m_state.speaker_data_ack.valid() ||
-		//	std::future_status::timeout == m_state.speaker_data_ack.wait_until(std::chrono::steady_clock::now()))
-		//{
-			// read up to 20 more bytes
-			stream->read(reinterpret_cast<char*>(m_state.speaker_report.data), 20);
-			m_state.speaker_report.size = stream->gcount();
-			m_state.speaker_report.unknown = 0;//3;
-		//}
-		//else
-		//{
-		//	printf("got bad ack\n");
-		//	//return;
-		//	//m_state.speaker_report.unknown = 2;
-		//}
-
-		m_state.speaker_report.rumble = m_state.rumble.load();
-
-		if (m_state.speaker_report.size)
-		{
-			//std::unique_ptr<ack_reply_handler> handler(new ack_reply_handler(rpt::speaker_data::RPT_ID));
-			//m_state.speaker_data_ack = handler->promise.get_future();
-			//add_report_handler(std::move(handler));	// TODO: leaking
-
-			send_report(m_state.speaker_report);
-			speaker_sample_number += m_state.speaker_report.size * (m_state.speaker_fmt == format_adpcm ? 2 : 1);
-
-#if 0	// absolute time
-			
-			// TODO: make better
-			auto packet_time = speaker_start_time +
-				std::chrono::milliseconds(std::chrono::seconds(speaker_sample_number)) / (int64_t)m_state.speaker_freq;
-
-			// testing hax
-			//packet_time += std::chrono::milliseconds(1);
-
-			m_worker.schedule_job_at(std::bind(&wiimote::speaker_stream_some<S>, this, stream),
-				packet_time,
-				job_type_speaker);
-
-#else	// relative time
-
-			auto delay =
-				std::chrono::milliseconds(std::chrono::seconds(speaker_sample_number)) / (int64_t)m_state.speaker_freq;
-
-			// testing hax
-			//delay += std::chrono::milliseconds(-5);
-
-			m_worker.schedule_job_in(std::bind(&wiimote::speaker_stream_some<S>, this, stream),
-				delay,
-				job_type_speaker);
-
-			speaker_sample_number = 0;
-#endif
-		}
-	}
-
+	// sets the rumble bit on the given output report and sends it
 	template <typename R>
-	void send_report(const report<R>& _report)
+	void send_report(report<R>& _report)
 	{
-		//static_assert(std::is_base_of<output_report<>, R>::value, "bad report type");
+		static_assert(std::is_base_of<output_report<R::payload::rpt_id>, R>::value, "bad report type");
+
+		_report.motor = m_state.remote_rumble = m_state.rumble.load();
 
 		m_device.write(reinterpret_cast<const u8*>(&_report), sizeof(_report));
-	}
-
-	template <typename R>
-	void schedule_report(const report<R>& _report)
-	{
-		//static_assert(std::is_base_of<output_report<>, R>::value, "bad report type");
-
-		// TODO: don't like this _report copy here
-		m_worker.schedule_job([this, _report]
-		{
-			send_report(_report);
-		});
 	}
 
 	struct report_handler
@@ -581,9 +489,7 @@ private:
 	{
 		bool handle_report(const std::vector<u8>& _rpt)
 		{
-			auto result = report_cast<R>(_rpt);
-			
-			if (result)
+			if (auto result = report_cast<R>(_rpt))
 				return handle_report(*result);
 			else
 				return false;
@@ -592,11 +498,12 @@ private:
 		virtual bool handle_report(const report<R>&) = 0;
 	};
 
+	template <typename R>
 	struct ack_reply_handler : specific_report_handler<rpt::ack>
 	{
 		bool handle_report(const report<rpt::ack>& reply)
 		{
-			if (reply.ack_id == rpt_id && 0 == --counter)
+			if (reply.ack_id == R::payload::rpt_id && 0 == --counter)
 			{
 				promise.set_value(reply.error);
 				return true;
@@ -605,12 +512,11 @@ private:
 			return false;
 		}
 
-		ack_reply_handler(u8 _rpt_id, size_t _counter = 1)
-			: rpt_id(_rpt_id), counter(_counter)
+		ack_reply_handler(size_t _counter = 1)
+			: counter(_counter)
 		{}
 
 		size_t counter;
-		u8 rpt_id;
 		std::promise<ack_error> promise;
 
 	private:
@@ -630,28 +536,25 @@ private:
 	{
 		std::atomic<u8> leds;	// TODO: atomic not needed
 		std::atomic<bool> rumble;
+		bool remote_rumble;
 		std::atomic<u8> battery;
 		std::atomic<extid_t> extid;
-		
-		std::atomic<core_button_t> button;
 	
-		volatile speaker_frequency speaker_freq;
-		volatile speaker_format speaker_fmt;
-		volatile speaker_volume speaker_vol;
+		volatile speaker_rate_type speaker_rate;
+		volatile speaker_format_type speaker_fmt;
+		volatile speaker_volume_type speaker_vol;
 
 		std::future<ack_error> speaker_data_ack;
 		report<rpt::speaker_data> speaker_report;
 	
 	} m_state;
 
+	input_state m_input_state;
+
 	void add_report_handler(std::unique_ptr<report_handler>&& _handler)
 	{
-		{
 		std::lock_guard<std::mutex> lk(m_read_handler_lock);
 		m_read_handlers.push_back(std::move(_handler));
-		}
-
-		//m_handler_condvar.second->notify_one();
 	}
 
 	void add_report_handler(const std::function<bool(const std::vector<u8>&)>& _func)
@@ -691,8 +594,19 @@ private:
 		add_report_handler(std::move(handler));
 	}
 
-	bool wiimote::handle_button_report(const std::vector<u8>& _rpt);
-	bool wiimote::handle_data_report(const std::vector<u8>& _rpt);
+	bool handle_button_data_report(const std::vector<u8>& _rpt);
+	bool handle_accel_data_report(const std::vector<u8>& _rpt);
+
+	std::future<std::vector<u8>> read_accel_calibration_data()
+	{
+		return read_eeprom(0x16, 0x14);
+	};
+
+	// region is 0xa4 or 0xa6
+	std::future<std::vector<u8>> read_ext_calibration_data(u8 _region)
+	{
+		return read_register((_region << 0x10) | 0x20, 0x20);
+	};
 
 	//struct
 	//{
@@ -712,24 +626,41 @@ private:
 
 std::vector<std::unique_ptr<wiimote>> find_Wiimotes(size_t max_wiimotes);
 
-inline bool wiimote::handle_button_report(const std::vector<u8>& _rpt)
+inline bool wiimote::handle_button_data_report(const std::vector<u8>& _rpt)
 {
-	if (_rpt.size() >= 4 && _rpt[1] != rptmode::ext21)
+	if (_rpt.size() >= 4 && _rpt[1] != rpt::data::ext21::payload::rpt_id)
 	{
 		//printf("button\n");
-		m_state.button.store(*reinterpret_cast<const core_button_t*>(&_rpt[2]));
+		m_input_state.button = *reinterpret_cast<const core_button_t*>(&_rpt[2]);
 		//printf("%d", m_state.button.load());
 	}
 
 	return false;
 }
 
-inline bool wiimote::handle_data_report(const std::vector<u8>& _rpt)
+inline bool wiimote::handle_accel_data_report(const std::vector<u8>& _rpt)
 {
-	if (!(_rpt.size() >= 4 && _rpt[1] != rptmode::ext21))
-		return false;
+	auto const set_accel = [this, _rpt](const rpt::data::accel_base& _accel)
+	{
+		// x
+		m_input_state.accel[0].val = _accel.accel.x << 2;
+		set_bits(m_input_state.accel[0].val, 0, 2, get_bits(_rpt[2], 5, 2));
+		// y
+		m_input_state.accel[1].val = _accel.accel.y << 2;
+		set_bit(m_input_state.accel[1].val, 1, get_bit(_rpt[3], 5));
+		// z
+		m_input_state.accel[2].val = _accel.accel.z << 2;
+		set_bit(m_input_state.accel[2].val, 1, get_bit(_rpt[3], 6));
+	};
 
-	//printf("data\n");
+	if (auto rpt = report_cast<rpt::data::button_accel>(_rpt))
+		set_accel(*rpt);
+	else if (auto rpt = report_cast<rpt::data::button_accel_ir12>(_rpt))
+		set_accel(*rpt);
+	else if (auto rpt = report_cast<rpt::data::button_accel_ext16>(_rpt))
+		set_accel(*rpt);
+	else if (auto rpt = report_cast<rpt::data::button_accel_ir10_ext6>(_rpt))
+		set_accel(*rpt);
 
 	return false;
 }

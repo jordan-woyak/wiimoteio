@@ -11,18 +11,20 @@
     </ProjectConfiguration>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="..\wiimoteio\basic_wiimote.h" />
     <ClInclude Include="..\wiimoteio\common_types.h" />
     <ClInclude Include="..\wiimoteio\data_report.h" />
     <ClInclude Include="..\wiimoteio\device.h" />
     <ClInclude Include="..\wiimoteio\extension.h" />
+    <ClInclude Include="..\wiimoteio\impl\wiimote_speaker.h" />
     <ClInclude Include="..\wiimoteio\input_state.h" />
+    <ClInclude Include="..\wiimoteio\wmath.h" />
     <ClInclude Include="..\wiimoteio\report.h" />
+    <ClInclude Include="..\wiimoteio\timed_callback.h" />
+    <ClInclude Include="..\wiimoteio\util.h" />
     <ClInclude Include="..\wiimoteio\wiimote.h" />
     <ClInclude Include="..\wiimoteio\worker_thread.h" />
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="..\wiimoteio\basic_wiimote.cpp" />
     <ClCompile Include="..\wiimoteio\device.cpp" />
     <ClCompile Include="..\wiimoteio\extension.cpp" />
     <ClCompile Include="..\wiimoteio\wiimote.cpp" />
@@ -59,7 +61,8 @@
       <WarningLevel>Level3</WarningLevel>
       <Optimization>Disabled</Optimization>
       <AdditionalIncludeDirectories>..\wiimoteio;..\cpp0x-stdlib-msvc;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
-      <PreprocessorDefinitions>NOMINMAX;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <ShowIncludes>false</ShowIncludes>
     </ClCompile>
     <Link>
       <GenerateDebugInformation>true</GenerateDebugInformation>
@@ -72,7 +75,7 @@
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <AdditionalIncludeDirectories>..\wiimoteio;..\cpp0x-stdlib-msvc;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
-      <PreprocessorDefinitions>NOMINMAX;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>%(PreprocessorDefinitions)</PreprocessorDefinitions>
     </ClCompile>
     <Link>
       <GenerateDebugInformation>true</GenerateDebugInformation>

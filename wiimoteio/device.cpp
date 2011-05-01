@@ -138,7 +138,7 @@ bool device::write(const char_type* _data, size_t len)
 	std::array<char_type, max_packet_size> data;
 	std::copy(_data, _data + len, data.begin());
 
-	ResetEvent(m_write_overlapped.hEvent);
+	ResetEvent(m_write_overlapped.hEvent);	// TODO: event isn't being used
 
 	if (m_use_writefile)
 	{

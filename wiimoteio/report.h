@@ -113,19 +113,16 @@ static_assert(2 == sizeof(hid_header), "bad size");
 template <typename P>
 struct report : hid_header, P
 {
-	report(/*const bool zero = false*/)
-		: hid_header(P::HID::TYPE, P::HID::PARAM, P::RPT_ID)
-	{
-		//if (zero)
-			//memset(((u8*)this) + sizeof(hid_header), 0, sizeof(P));
-	}
+	report()
+		: hid_header(P::payload::hid::type, P::payload::hid::param, P::payload::rpt_id)
+	{}
 
-	// TODO: move to report_cast
+	// TODO: move to report_cast, maybe
 	bool is_sane() const
 	{
-		return hid_header::hid_cmd.type == P::HID::TYPE
-			&& hid_header::hid_cmd.param == P::HID::PARAM
-			&& hid_header::rpt_id == P::RPT_ID;
+		return hid_header::hid_cmd.type == P::payload::hid::type
+			&& hid_header::hid_cmd.param == P::payload::hid::param
+			&& hid_header::rpt_id == P::payload::rpt_id;
 	}
 };
 
@@ -143,23 +140,30 @@ const report<P>* report_cast(C& _rpt)
 	return nullptr;
 }
 
+// TODO: poor name
 template <u8 T, u8 P, u8 I>
 struct payload
 {
-	struct HID
+	struct hid
 	{
-		static const u8 TYPE = T;
-		static const u8 PARAM = P;
+		static const u8 type = T;
+		static const u8 param = P;
 	};
 
-	static const u8 RPT_ID = I;
+	static const u8 rpt_id = I;
 };
 
 template <u8 I>
-struct input_report : payload<hid_type::data, hid_param::input, I> {};
+struct input_report
+{
+	typedef payload<hid_type::data, hid_param::input, I> payload;
+};
 
 template <u8 I>
-struct output_report : payload<hid_type::set_report, hid_param::output, I> {};
+struct output_report
+{
+	typedef payload<hid_type::set_report, hid_param::output, I> payload;
+};
 
 namespace rpt
 {
@@ -167,19 +171,19 @@ namespace rpt
 // 0x20: Status Information
 struct status : input_report<0x20>
 {
-	core_button_t	core_button;
+	core_button_t core_button;
 
-	u8	battery_low : 1;
-	u8	extension : 1;
-	u8	speaker : 1;
-	u8	ir : 1;
-	u8	leds : 4;
+	u8 battery_low : 1;
+	u8 extension : 1;
+	u8 speaker : 1;
+	u8 ir : 1;
+	u8 leds : 4;
 
 	u8 : 8;
 		
 	u8 : 8;
 
-	u8	battery;
+	u8 battery;
 };
 static_assert(6 == sizeof(status), "bad size");
 
@@ -193,15 +197,15 @@ struct read_data_reply : input_report<0x21>
 	//	err_bad_address = 8,
 	//};
 
-	core_button_t	core_button;
+	core_button_t core_button;
 
-	u8	error : 4;
+	u8 error : 4;
 private:
-	u8	size : 4;
+	u8 size : 4;
 
-	u8	address[2];
+	u8 address[2];
 public:
-	u8	data[16];
+	u8 data[16];
 
 	u16 get_size() const
 	{
@@ -218,26 +222,26 @@ static_assert(21 == sizeof(read_data_reply), "bad size");
 // 0x22: Acknowledge output report, return function result
 struct ack : input_report<0x22>
 {
-	core_button_t	core_button;
+	core_button_t core_button;
 
-	u8	ack_id;
+	u8 ack_id;
 
-	u8	error;
+	u8 error;
 };
 static_assert(4 == sizeof(ack), "bad size");
 
 // 0x30 - 0x3f: Data reports
 template <u8 D, u8 S>
-struct data : input_report<D>
+struct input_data : input_report<D>
 {
-	u8	_data[S];
+	u8 data[S];
 };
 
 // 0x13, 0x14, 0x19, 0x1a: Enable/Disable features
 template <u8 E>
 struct enable_feature : output_report<0x10 | E>
 {
-	u8 rumble : 1;
+	u8 motor : 1;
 	u8 request_ack : 1;
 	u8 enable : 1;
 	u8 : 5;
@@ -246,29 +250,29 @@ struct enable_feature : output_report<0x10 | E>
 // 0x10: Rumble
 struct rumble : output_report<0x10>
 {
-	u8	_rumble : 1;
+	u8 motor : 1;
 	u8 : 7;
 };
 static_assert(1 == sizeof(rumble), "bad size");
 
 // 0x11: Player LEDs
-struct leds : output_report<0x11>
+struct player_leds : output_report<0x11>
 {
-	u8	rumble : 1;
+	u8 motor : 1;
 	u8 : 3;
-	u8	_leds : 4;
+	u8 leds : 4;
 };
-static_assert(1 == sizeof(leds), "bad size");
+static_assert(1 == sizeof(player_leds), "bad size");
 
 // 0x12: Data Reporting mode
 struct report_mode : output_report<0x12>
 {
-	u8	rumble : 1;
+	u8 motor : 1;
 	u8 : 1;
-	u8	continuous : 1;
+	u8 continuous : 1;
 	u8 : 5;
 
-	u8	mode;
+	u8 mode;
 };
 static_assert(2 == sizeof(report_mode), "bad size");
 
@@ -283,7 +287,7 @@ static_assert(1 == sizeof(speaker_enable), "bad size");
 // 0x15: Status Information Request
 struct status_request : output_report<0x15>
 {
-	u8	rumble : 1;
+	u8 motor : 1;
 	u8 : 7;
 };
 static_assert(1 == sizeof(status_request), "bad size");
@@ -291,17 +295,17 @@ static_assert(1 == sizeof(status_request), "bad size");
 // 0x16: Write Memory and Registers
 struct write_data : output_report<0x16>
 {
-	u8	rumble : 1;
+	u8 motor : 1;
 	u8 : 1;
-	u8	space : 2;	// address space
+	u8 space : 2;	// address space
 	u8 : 4;
 		
 private:
-	u8	address[3];
-	u8	size;
+	u8 address[3];
+	u8 size;
 
 public:
-	u8	data[0x10];
+	u8 data[0x10];
 
 	// func
 	void set_address(u32 _address)
@@ -321,14 +325,14 @@ static_assert(21 == sizeof(write_data), "bad size");
 // 0x17: Read Memory and Registers
 struct read_data : output_report<0x17>
 {
-	u8	rumble : 1;
+	u8 motor : 1;
 	u8 : 1;
-	u8	space : 2;	// address space
+	u8 space : 2;	// address space
 	u8 : 4;
 		
 private:
-	u8	address[3];
-	u8	size[2];
+	u8 address[3];
+	u8 size[2];
 
 public:
 	void set_address(u32 _address)
@@ -349,11 +353,11 @@ static_assert(6 == sizeof(read_data), "bad size");
 // 0x18: SpeakerData
 struct speaker_data : output_report<0x18>
 {
-	u8	rumble : 1;
-	u8  unknown: 2;
-	u8	size : 5;
+	u8 motor : 1;
+	u8 : 2;
+	u8 size : 5;
 
-	u8	data[20];
+	u8 data[20];
 };
 static_assert(21 == sizeof(speaker_data), "bad size");
 

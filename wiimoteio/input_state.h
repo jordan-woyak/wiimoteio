@@ -29,6 +29,26 @@ distribution.
 namespace wio
 {
 
+namespace button
+{
+enum : u16
+{
+	left =	(1 << 0x0),
+	right =	(1 << 0x1),
+	down =	(1 << 0x2),
+	up =	(1 << 0x3),
+	plus =	(1 << 0x4),
+
+	two =	(1 << 0x8),
+	one =	(1 << 0x9),
+	b =		(1 << 0xa),
+	a =		(1 << 0xb),
+	minus =	(1 << 0xc),
+
+	home =	(1 << 0xf),
+};
+}
+
 class input_state
 {
 public:
@@ -48,6 +68,12 @@ public:
 
 		
 	} accel;
+
+	class
+	{
+
+
+	} gyro;
 };
 
 }

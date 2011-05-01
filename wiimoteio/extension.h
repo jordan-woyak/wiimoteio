@@ -25,6 +25,7 @@ distribution.
 #define WMLIB_EXTENSION_H_
 
 #include "common_types.h"
+#include "util.h"
 
 namespace wio
 {
@@ -54,6 +55,26 @@ class extension
 {
 
 };
+
+inline void undo_mp_passthrough(u8* _data, u8 _mode)
+{
+	if (0x05 == _mode)
+	{
+		// nunchuk passthrough
+		set_bit(_data[5], 0, get_bit(_data[5], 2)); set_bit(_data[5], 2, false);
+		set_bit(_data[5], 1, get_bit(_data[5], 3));
+		set_bit(_data[5], 3, get_bit(_data[5], 4)); set_bit(_data[5], 4, false);
+		set_bit(_data[4], 0, get_bit(_data[5], 7));
+		set_bit(_data[5], 7, get_bit(_data[5], 6)); set_bit(_data[5], 6, false);
+	}
+	else if (0x07 == _mode)
+	{
+		// other passthrough
+		set_bit(_data[5], 0, get_bit(_data[0], 0)); set_bit(_data[0], 0, false);
+		set_bit(_data[5], 1, get_bit(_data[1], 0)); set_bit(_data[1], 0, false);
+		set_bit(_data[4], 0, false);
+	}
+}
 
 }	// namespace
 
