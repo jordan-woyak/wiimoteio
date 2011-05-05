@@ -48,7 +48,7 @@ std::future<std::vector<u8>> wiimote::read_data(address_space _space, address_ty
 {
 	struct read_reply_handler : specific_report_handler<rpt::read_data_reply>
 	{
-		bool handle_report(const report<rpt::read_data_reply>& reply)
+		void handle_report(const report<rpt::read_data_reply>& reply)
 		{
 			if (reply.get_address() == (address & 0xffff))
 			{
@@ -64,7 +64,7 @@ std::future<std::vector<u8>> wiimote::read_data(address_space _space, address_ty
 					if (0 == bytes_left)
 					{
 						promise.set_value(std::move(data));
-						return true;
+						throw remove_handler();
 					}
 				}
 				else
@@ -72,11 +72,9 @@ std::future<std::vector<u8>> wiimote::read_data(address_space _space, address_ty
 					// read error
 					data.clear();
 					promise.set_value(std::move(data));
-					return true;
+					throw remove_handler();
 				}
 			}
-
-			return false;
 		}
 
 		read_reply_handler(address_type _address, size_t _length)

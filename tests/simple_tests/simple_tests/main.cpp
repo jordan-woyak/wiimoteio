@@ -61,8 +61,6 @@ int main()
 		}
 		wm.set_leds(wio::leds::player(0));
 
-		wm.set_features(wio::wiimote::feat_accel);
-
 		std::cout << "led: " << (int)wm.get_leds() << '\n';
 		std::cout << "bat: " << wm.get_battery_level() << '\n';
 		std::cout << "ext: " << (int)wm.get_extension_id() << '\n';
@@ -74,17 +72,27 @@ int main()
 		//wm.speaker_stream(std::ifstream("rmtdump.bin", std::ios::binary));
 		//std::cout << "streamin, yo\n";
 
+		wm.set_report_button(true);
+		wm.set_report_accel(true);
+		wm.set_report_ext(true);
+
 		std::cout << "\n" "press <enter> to start reading accel data" "\n";
 		std::cin.get();
 
 		while (true)
 		{
-			auto accel = wm.get_input_state().get_accel();
+			auto button = wm.get_input_button();
+			auto accel = wm.get_input_accel();
 
-			std::cout << "\r" "Accel:\t"
-				<< "\t" "X: " << std::fixed << accel[0].value() << '\t'
-				<< "\t" "Y: " << accel[1].value() << '\t'
-				<< "\t" "Z: " << accel[2].value() << '\t';
+			std::cout << '\r';
+
+			//std::cout << "Button: "
+			//	<< std::fixed << std::hex << (int)button << ' ';
+				
+			std::cout << "Accel: "
+				<< "X: " << std::fixed << accel[0].value() << ' '
+				<< "Y: " << accel[1].value() << ' '
+				<< "Z: " << accel[2].value() << ' ';
 
 			std::this_thread::sleep_for(std::chrono::milliseconds(10));
 		}
