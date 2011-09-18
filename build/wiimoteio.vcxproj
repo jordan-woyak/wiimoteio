@@ -14,6 +14,7 @@
     <ClInclude Include="..\wiimoteio\common_types.h" />
     <ClInclude Include="..\wiimoteio\data_report.h" />
     <ClInclude Include="..\wiimoteio\device.h" />
+    <ClInclude Include="..\wiimoteio\device_windows.h" />
     <ClInclude Include="..\wiimoteio\extension.h" />
     <ClInclude Include="..\wiimoteio\impl\wiimote_speaker.h" />
     <ClInclude Include="..\wiimoteio\input_state.h" />
@@ -25,7 +26,7 @@
     <ClInclude Include="..\wiimoteio\worker_thread.h" />
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="..\wiimoteio\device.cpp" />
+    <ClCompile Include="..\wiimoteio\device_windows.cpp" />
     <ClCompile Include="..\wiimoteio\extension.cpp" />
     <ClCompile Include="..\wiimoteio\wiimote.cpp" />
   </ItemGroup>

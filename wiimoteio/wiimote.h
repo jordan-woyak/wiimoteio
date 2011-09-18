@@ -80,8 +80,8 @@ public:
 	//wiimote()
 	//{}
 
-	explicit wiimote(device&& _dev)
-		: m_device(std::move(_dev))
+	explicit wiimote(std::unique_ptr<device>&& handle)
+		: m_device(std::move(handle))
 	{
 		m_state.remote_rumble = false;
 		m_state.rumble.store(false);
@@ -98,7 +98,10 @@ public:
 		m_state.leds.store(0);
 		m_state.extid.store(extid::nothing);
 
-		m_device.callback_read([this](const device::callback_data_type& _rpt)
+		m_state.ext_mode.store(0x00);
+		m_state.gyro_mode.store(0x00);
+
+		m_device->callback_read([this](const device::callback_data_type& _rpt)
 		{
 			// hax
 			if (0x22 == _rpt[1] && 0x18 == _rpt[4])
@@ -137,9 +140,10 @@ public:
 		
 		update_accel_calibration();
 
-		// TODO: only add when features are enabled
+		// button data is found in every input report
 		add_report_handler(std::bind(&wiimote::handle_button_data_report, this, std::placeholders::_1));
-		add_report_handler(std::bind(&wiimote::handle_accel_data_report, this, std::placeholders::_1));
+
+		m_state.data_report_handler_iter = m_read_handlers.end();
 
 		m_worker.schedule_job([this]
 		{
@@ -151,19 +155,16 @@ public:
 	~wiimote()
 	{
 		m_worker.remove_all();
-		m_device.callback_read(nullptr);
-		m_device.close();
 	}
 
 	void close()
 	{
-		m_device.callback_read(nullptr);
-		m_device.close();
+		m_device->close();
 	}
 
 	bool is_open() const
 	{
-		return m_device.is_open();
+		return m_device->is_open();
 	}
 
 	u8 get_leds() const
@@ -278,55 +279,51 @@ public:
 	bool get_report_button() const
 	{ return m_state.report_button.load(); }
 
-	bool set_report_button(bool _enable)
+	void set_report_button(bool _enable)
 	{
 		m_state.report_button.store(_enable);
 		
 		update_reporting_mode();
-
-		return true;	// button data is always available
 	}
 
 	bool get_report_accel() const
 	{ return m_state.report_accel.load(); }
 
-	bool set_report_accel(bool _enable)
+	void set_report_accel(bool _enable)
 	{
 		m_state.report_accel.store(_enable);
 
 		update_reporting_mode();
-
-		return true;
 	}
 
 	bool get_report_ir() const
 	{ return m_state.report_ir.load(); }
 
-	bool set_report_ir(bool _enable)
+	void set_report_ir(bool _enable)
 	{
 		m_state.report_ir.store(_enable);
-		return false;
+
+		update_reporting_mode();
 	}
 
 	bool get_report_ext() const
 	{ return m_state.report_ext.load(); }
 
-	bool set_report_ext(bool _enable)
+	void set_report_ext(bool _enable)
 	{
 		m_state.report_ext.store(_enable);
 
 		update_reporting_mode();
-
-		return false;
 	}
 
 	bool get_report_gyro() const
 	{ return m_state.report_gyro.load(); }
 
-	bool set_report_gyro(bool _enable)
+	void set_report_gyro(bool _enable)
 	{
 		m_state.report_gyro.store(_enable);
-		return false;
+
+		update_reporting_mode();
 	}
 
 	enum : worker_thread::job_type
@@ -381,15 +378,9 @@ public:
 	{
 		// TODO: assumed atomic
 		core_button_t button;
-		//std::shared_ptr<std::vector<u8>> last_data_report;
 
-		
 		std::array<calibrated_int<u16>, 3> accel;
-
-		const std::array<calibrated_int<u16>, 3>& get_accel() const
-		{
-			return accel;
-		}
+		std::array<calibrated_int<u16>, 3> gyro;
 	};
 
 	typedef core_button_t input_button_type;
@@ -410,34 +401,34 @@ public:
 	typedef void* input_ext_type;
 	const input_ext_type& get_input_ext() const;
 
-	typedef void* input_gyro_type;
-	const input_gyro_type& get_input_gyro() const;
+	typedef std::array<calibrated_int<u16>, 3> input_gyro_type;
+	const input_gyro_type& get_input_gyro() const
+	{
+		return m_input_state.gyro;
+	}
 
 	bool get_present_ext() const
 	{ return m_state.present_ext.load(); }
 
-	bool get_present_gyro() const
-	{ return false; }
-
-	// TODO: asyncronous
-	extid_t get_extension_id()
+	bool get_present_gyro()
 	{
-#if 1
-		// initialize extension
-		std::vector<u8> data(1);
-		data[0] = 0x55;
-		write_register(0xa400f0, data);
-		data[0] = 0x00;
-		write_register(0xa400fb, data).wait();
+		auto data = read_register(0xa600fa, 6).get();
 
-		data = read_register(0xa400fa, 6).get();
+		return data.size() != 0;	
+	}
+
+	// TODO: asyncronous?
+	extid_t get_ext_id()
+	{
+		initialize_extension();
+
+		auto data = read_register(0xa400fa, 6).get();
 
 		extid_t val = extid::nothing;
 		if (!data.empty())
 			val = (data[0] << 8) | data[5];
 
 		m_state.extid.store(val);
-#endif
 
 		return m_state.extid.load();
 	}
@@ -460,7 +451,7 @@ private:
 
 		_report.motor = m_state.remote_rumble = m_state.rumble.load();
 
-		m_device.write(reinterpret_cast<const u8*>(&_report), sizeof(_report));
+		m_device->write(reinterpret_cast<const u8*>(&_report), sizeof(_report));
 	}
 
 	struct report_handler
@@ -510,11 +501,12 @@ private:
 		ack_reply_handler& operator=(const ack_reply_handler& other);
 	};
 
-	device m_device;
+	std::unique_ptr<device> m_device;
 
 	worker_thread m_worker;
 
 	std::list<std::unique_ptr<report_handler>> m_read_handlers;
+	typedef std::list<std::unique_ptr<report_handler>>::iterator report_handler_iter;
 
 	std::mutex m_read_handler_lock;
 
@@ -531,8 +523,8 @@ private:
 		volatile speaker_format_type speaker_fmt;
 		volatile speaker_volume_type speaker_vol;
 
-		std::future<ack_error> speaker_data_ack;
-		report<rpt::speaker_data> speaker_report;
+		std::atomic<u8> ext_mode;
+		std::atomic<u8> gyro_mode;
 	
 		// features
 		std::atomic<bool>
@@ -542,6 +534,8 @@ private:
 			report_gyro,
 			report_ext;
 
+		report_handler_iter data_report_handler_iter;
+
 	} m_state;
 
 	input_state m_input_state;
@@ -550,29 +544,14 @@ private:
 	{
 		auto status_handler = [this](const report<rpt::status>& status)
 		{
-			//printf("got status\n");
+			printf("got status\n");
 			m_state.battery.store(status.battery);
 			m_state.present_ext.store(status.extension);
-			//m_state.leds.store(status.leds);
 
-			// TODO: only do this after enabling ext feature
-			// read extid
-			if (status.extension)
+			if (!status.extension)
 			{
-				// initialize extension
-				//std::vector<u8> data(1);
-				//data[0] = 0x55;
-				//write_register(0xa400f0, data);
-				//data[0] = 0x00;
-				//write_register(0xa400fb, data);//.wait();
-
-				//data = read_register(0xa400fa, 6).get();
-
-				//extid_t val = extid::nothing;
-				//if (!data.empty())
-				//	val = (data[0] << 8) | data[5];
-
-				//m_state.extid.store(val);
+				m_state.ext_mode.store(0x00);
+				//m_state.gyro_mode.store(0x00);
 			}
 
 			throw wiimote::report_handler::remove_handler();
@@ -586,13 +565,20 @@ private:
 		});
 	}
 
-	void add_report_handler(std::unique_ptr<report_handler>&& _handler)
+	void remove_report_handler(const report_handler_iter& iter)
+	{
+		std::lock_guard<std::mutex> lk(m_read_handler_lock);
+		m_read_handlers.erase(iter, m_read_handlers.end());
+	}
+
+	report_handler_iter add_report_handler(std::unique_ptr<report_handler>&& _handler)
 	{
 		std::lock_guard<std::mutex> lk(m_read_handler_lock);
 		m_read_handlers.push_back(std::move(_handler));
+		return std::prev(m_read_handlers.end());
 	}
 
-	void add_report_handler(const std::function<void(const std::vector<u8>&)>& _func)
+	report_handler_iter add_report_handler(const std::function<void(const std::vector<u8>&)>& _func)
 	{
 		struct func_handler : report_handler
 		{
@@ -607,11 +593,11 @@ private:
 		std::unique_ptr<func_handler> handler(new func_handler);
 		handler->func = _func;
 
-		add_report_handler(std::move(handler));
+		return add_report_handler(std::move(handler));
 	}
 
 	template <typename R>
-	void add_specific_report_handler(const std::function<void(const report<R>&)>& _func)
+	report_handler_iter add_specific_report_handler(const std::function<void(const report<R>&)>& _func)
 	{
 		struct func_handler : specific_report_handler<R>
 		{
@@ -626,7 +612,51 @@ private:
 		std::unique_ptr<func_handler> handler(new func_handler);
 		handler->func = _func;
 
-		add_report_handler(std::move(handler));
+		return add_report_handler(std::move(handler));
+	}
+
+	void initialize_extension()
+	{
+		if (0x00 == m_state.ext_mode.load())
+		{
+			std::vector<u8> data(1);
+
+			data[0] = 0x55;
+			write_register(0xa400f0, data);
+
+			data[0] = 0x00;
+			write_register(0xa400fb, data);
+
+			m_state.ext_mode.store(0x55);
+		}
+	}
+
+	void initialize_gyro()
+	{
+		if (0x00 == m_state.gyro_mode.load())
+		{
+			std::vector<u8> data(1);
+
+			data[0] = 0x55;
+			write_register(0xa600f0, data);
+
+			// TODO: pass-through mode
+			data[0] = 0x4;
+			write_register(0xa600fe, data);
+
+			m_state.ext_mode.store(0x55);
+		}
+	}
+
+	template <typename R>
+	u8 change_reporting_mode()
+	{
+		// replace data report handler
+		remove_report_handler(m_state.data_report_handler_iter);
+		m_state.data_report_handler_iter =
+			add_specific_report_handler<R>(std::bind(&wiimote::handle_data_report<R>, this, std::placeholders::_1));
+
+		return R::payload::rpt_id;
 	}
 
 	void update_reporting_mode()
@@ -636,9 +666,12 @@ private:
 		u8 mode = rpt::data::button::payload::rpt_id;
 
 		if (m_state.report_accel.load() && m_state.report_ext.load())
-			mode = rpt::data::button_accel_ext16::payload::rpt_id;
+			mode = change_reporting_mode<rpt::data::button_accel_ext16>();
 		else if (m_state.report_accel.load())
-			mode = rpt::data::button_accel::payload::rpt_id;
+			mode = change_reporting_mode<rpt::data::button_accel>();
+
+		if (m_state.report_ext.load())
+			initialize_extension();
 
 		m_worker.schedule_job([this, mode]
 		{
@@ -678,7 +711,14 @@ private:
 	}
 
 	void handle_button_data_report(const std::vector<u8>& _rpt);
-	void handle_accel_data_report(const std::vector<u8>& _rpt);
+
+	//template <typename R>
+	//void extract_accel_data(const R& _rpt) {}
+
+	template <typename R>
+	void handle_data_report(const report<R>& _rpt);
+
+	void handle_gyro_data(const ext::motion_plus::datafmt& _data);
 
 	std::future<std::vector<u8>> read_accel_calibration_data()
 	{
@@ -713,35 +753,50 @@ inline void wiimote::handle_button_data_report(const std::vector<u8>& _rpt)
 {
 	if (_rpt.size() >= 4 && _rpt[1] != rpt::data::ext21::payload::rpt_id)
 	{
-		//printf("button\n");
-		m_input_state.button = *reinterpret_cast<const core_button_t*>(&_rpt[2]);
-		//printf("%d", m_state.button.load());
+		m_input_state.button = 0;
+		m_input_state.button |= (_rpt[2] & 0x9f) << 0x0;
+		m_input_state.button |= (_rpt[3] & 0x9f) << 0x8;
 	}
 }
 
-inline void wiimote::handle_accel_data_report(const std::vector<u8>& _rpt)
-{
-	auto const set_accel = [this, _rpt](const rpt::data::accel_base& _accel)
-	{
-		// x
-		m_input_state.accel[0].val = _accel.accel.x << 2;
-		set_bits(m_input_state.accel[0].val, 0, 2, get_bits(_rpt[2], 5, 2));
-		// y
-		m_input_state.accel[1].val = _accel.accel.y << 2;
-		set_bit(m_input_state.accel[1].val, 1, get_bit(_rpt[3], 5));
-		// z
-		m_input_state.accel[2].val = _accel.accel.z << 2;
-		set_bit(m_input_state.accel[2].val, 1, get_bit(_rpt[3], 6));
-	};
+//template <>
+//void wiimote::extract_accel_data<rpt::data::accel_base>(const rpt::data::accel_base& _rpt)
+//{
+//	//// x
+//	//m_input_state.accel[0].val = _rpt.accel.x << 2;
+//	//set_bits(m_input_state.accel[0].val, 0, 2, get_bits(_rpt.button[0], 5, 2));
+//	//// y
+//	//m_input_state.accel[1].val = _rpt.accel.y << 2;
+//	//set_bit(m_input_state.accel[1].val, 1, get_bit(_rpt.button[1], 5));
+//	//// z
+//	//m_input_state.accel[2].val = _rpt.accel.z << 2;
+//	//set_bit(m_input_state.accel[2].val, 1, get_bit(_rpt.button[1], 6));	
+//}
 
-	if (auto rpt = report_cast<rpt::data::button_accel>(_rpt))
-		set_accel(*rpt);
-	else if (auto rpt = report_cast<rpt::data::button_accel_ir12>(_rpt))
-		set_accel(*rpt);
-	else if (auto rpt = report_cast<rpt::data::button_accel_ext16>(_rpt))
-		set_accel(*rpt);
-	else if (auto rpt = report_cast<rpt::data::button_accel_ir10_ext6>(_rpt))
-		set_accel(*rpt);
+template <typename R>
+void wiimote::handle_data_report(const report<R>& _rpt)
+{
+	//extract_accel_data(_rpt);
+}
+
+inline void wiimote::handle_gyro_data(const ext::motion_plus::datafmt& _data)
+{
+	// TODO: slow bit handling
+
+	// yaw
+	m_input_state.gyro[0].val = _data.yaw_low;
+	m_input_state.gyro[0].val |= _data.yaw_high << 0x8;
+	//m_input_state.gyro[0].val |= !_data.yaw_slow << 0xe;
+
+	// roll
+	m_input_state.gyro[1].val = _data.roll_low;
+	m_input_state.gyro[1].val |= _data.roll_high << 0x8;
+	//m_input_state.gyro[1].val |= !_data.roll_slow << 0xe;
+
+	// pitch
+	m_input_state.gyro[2].val = _data.pitch_low;
+	m_input_state.gyro[2].val |= _data.pitch_high << 0x8;
+	//m_input_state.gyro[2].val |= !_data.pitch_slow << 0xe;
 }
 
 }	// namespace

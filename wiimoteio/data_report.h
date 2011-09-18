@@ -38,7 +38,7 @@ namespace data
 
 struct button_base
 {
-	core_button_t button;
+	u8 button[2];
 };
 
 // 0x30: Button

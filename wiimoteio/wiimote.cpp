@@ -34,7 +34,7 @@ std::vector<std::unique_ptr<wiimote>> find_Wiimotes(size_t max_wiimotes)
 	std::vector<std::unique_ptr<wiimote>> wiimotes;
 	wiimotes.reserve(devs.size());
 	
-	std::for_each(devs.begin(), devs.end(), [&wiimotes](device& dev)
+	std::for_each(devs.begin(), devs.end(), [&wiimotes](std::unique_ptr<device>& dev)
 	{
 		//u8 foo[22];
 		//if (dev.read(foo, 22) != -1)	// TODO: ugly

@@ -114,41 +114,16 @@ void wiimote::speaker_stream(S&& _strm)
 template <typename S>
 void wiimote::speaker_stream_some(S stream)
 {
-	//if (m_state.speaker_data_ack.valid() &&
-	//	std::future_status::ready == m_state.speaker_data_ack.wait_until(std::chrono::steady_clock::now()))
-	//{
-	//	std::vector<u8> data(2);
-	//	data[0] = 0x0c;
-	//	data[1] = 0x0e;
-	//	write_register(0xa20006, data);
+	// read up to 20 more bytes
+	report<rpt::speaker_data> speaker_report;
 
-	//	//std::this_thread::sleep_for(std::chrono::milliseconds(250));
+	stream->read(reinterpret_cast<char*>(speaker_report.data), 20);
+	speaker_report.size = stream->gcount();
 
-	//	stream->seekg(0, std::ios::beg);
-	//}
-
-	//if (!m_state.speaker_data_ack.valid() ||
-	//	std::future_status::timeout == m_state.speaker_data_ack.wait_until(std::chrono::steady_clock::now()))
-	//{
-		// read up to 20 more bytes
-		stream->read(reinterpret_cast<char*>(m_state.speaker_report.data), 20);
-		m_state.speaker_report.size = stream->gcount();
-	//}
-	//else
-	//{
-	//	printf("got bad ack\n");
-	//	//return;
-	//	//m_state.speaker_report.unknown = 2;
-	//}
-
-	if (m_state.speaker_report.size)
+	if (speaker_report.size)
 	{
-		std::unique_ptr<ack_reply_handler<rpt::speaker_data>> handler(new ack_reply_handler<rpt::speaker_data>);
-		m_state.speaker_data_ack = handler->promise.get_future();
-		add_report_handler(std::move(handler));	// TODO: leaking
-
-		send_report(m_state.speaker_report);
-		speaker_sample_number += m_state.speaker_report.size * (m_state.speaker_fmt == format_adpcm ? 2 : 1);
+		send_report(speaker_report);
+		speaker_sample_number += speaker_report.size * (m_state.speaker_fmt == format_adpcm ? 2 : 1);
 
 #if 0	// absolute time
 			
