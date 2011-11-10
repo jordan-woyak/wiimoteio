@@ -21,8 +21,7 @@ misrepresented as being the original software.
 distribution.
 */
 
-#ifndef WMLIB_UTIL_H_
-#define WMLIB_UTIL_H_
+#pragma once
 
 namespace wio
 {
@@ -84,4 +83,3 @@ V get_bits(const V& _val, size_t _bit_index, size_t _count)
 
 }	// namespace
 
-#endif

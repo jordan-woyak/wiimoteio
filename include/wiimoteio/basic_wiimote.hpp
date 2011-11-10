@@ -21,8 +21,7 @@ misrepresented as being the original software.
 distribution.
 */
 
-#ifndef WMLIB_BASIC_WIIMOTE_H_
-#define WMLIB_BASIC_WIIMOTE_H_
+#pragma once
 
 #include <list>
 #include <future>
@@ -198,4 +197,3 @@ private:
 	
 }	// namespace
 
-#endif

@@ -21,8 +21,7 @@ misrepresented as being the original software.
 distribution.
 */
 
-#ifndef WMLIB_REPORT_H_
-#define WMLIB_REPORT_H_
+#pragma once
 
 #include <vector>
 
@@ -375,4 +374,3 @@ static_assert(1 == sizeof(camera_enable), "bad size");
 
 #pragma pack(pop)
 
-#endif

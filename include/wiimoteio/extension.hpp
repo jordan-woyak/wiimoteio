@@ -21,8 +21,7 @@ misrepresented as being the original software.
 distribution.
 */
 
-#ifndef WMLIB_EXTENSION_H_
-#define WMLIB_EXTENSION_H_
+#pragma once
 
 #include "common_types.h"
 #include "util.h"
@@ -169,4 +168,3 @@ static_assert(6 == sizeof(datafmt), "bad size");
 
 }	// namespace
 
-#endif

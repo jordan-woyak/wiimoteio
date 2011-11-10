@@ -21,8 +21,7 @@ misrepresented as being the original software.
 distribution.
 */
 
-#ifndef WMLIB_COMMON_TYPES_H_
-#define WMLIB_COMMON_TYPES_H_
+#pragma once
 
 #include <cstdint>
 
@@ -41,4 +40,3 @@ typedef std::int64_t s64;
 
 }	// namespace
 
-#endif

@@ -21,8 +21,7 @@ misrepresented as being the original software.
 distribution.
 */
 
-#ifndef WMLIB_INPUT_STATE_H_
-#define WMLIB_INPUT_STATE_H_
+#pragma once
 
 #include "common_types.h"
 
@@ -78,4 +77,3 @@ public:
 
 }
 
-#endif

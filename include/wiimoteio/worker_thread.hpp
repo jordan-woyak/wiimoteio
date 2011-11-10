@@ -21,8 +21,7 @@ misrepresented as being the original software.
 distribution.
 */
 
-#ifndef WMLIB_WORKER_THREAD_H_
-#define WMLIB_WORKER_THREAD_H_
+#pragma once
 
 #include <map>
 #include <functional>
@@ -142,4 +141,3 @@ private:
 
 }	// namespace
 
-#endif

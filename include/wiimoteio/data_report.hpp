@@ -21,8 +21,7 @@ misrepresented as being the original software.
 distribution.
 */
 
-#ifndef WMLIB_DATA_REPORT_H_
-#define WMLIB_DATA_REPORT_H_
+#pragma once
 
 #include "report.h"
 
@@ -115,4 +114,3 @@ static_assert(21 == sizeof(ext21), "bad size");
 
 }	// namespace
 
-#endif

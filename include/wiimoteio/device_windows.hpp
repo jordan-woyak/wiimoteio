@@ -21,8 +21,7 @@ misrepresented as being the original software.
 distribution.
 */
 
-#ifndef WMLIB_DEVICE_H_
-#define WMLIB_DEVICE_H_
+#pragma once
 
 extern "C"
 {
@@ -157,4 +156,3 @@ std::vector<std::unique_ptr<device>> find_devices(size_t max_devices);
 
 }	// namespace
 
-#endif

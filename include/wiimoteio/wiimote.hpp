@@ -23,8 +23,7 @@ distribution.
 
 #include "impl/wiimote_speaker.h"
 
-#ifndef WMLIB_WIIMOTE_H_
-#define WMLIB_WIIMOTE_H_
+#pragma once
 
 #include <vector>
 #include <list>
@@ -801,4 +800,3 @@ inline void wiimote::handle_gyro_data(const ext::motion_plus::datafmt& _data)
 
 }	// namespace
 
-#endif
