@@ -23,8 +23,8 @@ distribution.
 
 #pragma once
 
-#include "common_types.h"
-#include "util.h"
+#include "common_types.hpp"
+#include "util.hpp"
 
 namespace wio
 {
@@ -168,3 +168,4 @@ static_assert(6 == sizeof(datafmt), "bad size");
 
 }	// namespace
 
+#include "impl/extension.hpp"

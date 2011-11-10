@@ -23,7 +23,7 @@ distribution.
 
 #pragma once
 
-#include "common_types.h"
+#include "common_types.hpp"
 
 namespace wio
 {

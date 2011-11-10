@@ -21,8 +21,6 @@ misrepresented as being the original software.
 distribution.
 */
 
-#include "impl/wiimote_speaker.h"
-
 #pragma once
 
 #include <vector>
@@ -32,19 +30,12 @@ distribution.
 #include <atomic>
 #include <future>
 
-extern "C"
-{
-#include <Rpc.h>
-#include <Setupapi.h>
-#include <Hidsdi.h>
-}
-
-#include "common_types.h"
-#include "report.h"
-#include "device.h"
-#include "worker_thread.h"
-#include "data_report.h"
-#include "extension.h"
+#include "common_types.hpp"
+#include "report.hpp"
+#include "device.hpp"
+#include "worker_thread.hpp"
+#include "data_report.hpp"
+#include "extension.hpp"
 
 namespace wio
 {
@@ -800,3 +791,4 @@ inline void wiimote::handle_gyro_data(const ext::motion_plus::datafmt& _data)
 
 }	// namespace
 
+#include "impl/wiimote_speaker.hpp"

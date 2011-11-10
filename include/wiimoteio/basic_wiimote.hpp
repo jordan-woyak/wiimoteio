@@ -27,9 +27,9 @@ distribution.
 #include <future>
 #include <memory>
 
-#include "device.h"
-#include "report.h"
-#include "worker_thread.h"
+#include "device.hpp"
+#include "report.hpp"
+#include "worker_thread.hpp"
 
 namespace wio
 {
@@ -197,3 +197,4 @@ private:
 	
 }	// namespace
 
+#include "impl/basic_wiimote.hpp"

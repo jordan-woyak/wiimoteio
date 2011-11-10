@@ -25,7 +25,7 @@ distribution.
 
 #include <vector>
 
-#include "common_types.h"
+#include "common_types.hpp"
 
 #pragma pack(push,1)
 

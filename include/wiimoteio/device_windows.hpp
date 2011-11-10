@@ -35,7 +35,7 @@ extern "C"
 #include <thread>
 #include <functional>
 
-#include "common_types.h"
+#include "common_types.hpp"
 
 namespace wio
 {
@@ -156,3 +156,4 @@ std::vector<std::unique_ptr<device>> find_devices(size_t max_devices);
 
 }	// namespace
 
+#include "impl/device_windows.hpp"

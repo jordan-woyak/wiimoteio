@@ -24,7 +24,7 @@ distribution.
 //#include <system_error>
 #include <array>
 
-#include "device.h"
+#include "device.hpp"
 
 #pragma comment(lib, "Setupapi.lib")
 #pragma comment(lib, "Hid.lib")

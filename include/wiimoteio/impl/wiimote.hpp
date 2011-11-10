@@ -21,8 +21,8 @@ misrepresented as being the original software.
 distribution.
 */
 
-#include "wiimote.h"
-#include "report.h"
+#include "wiimote.hpp"
+#include "report.hpp"
 
 namespace wio
 {

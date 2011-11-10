@@ -23,7 +23,7 @@ distribution.
 
 #pragma once
 
-#include "../wiimote.h"
+#include "../wiimote.hpp"
 
 namespace wio
 {

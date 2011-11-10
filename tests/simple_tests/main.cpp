@@ -21,7 +21,7 @@ misrepresented as being the original software.
 distribution.
 */
 
-#include "wiimoteio/wiimote.h"
+#include "wiimoteio/wiimoteio.hpp"
 
 #include <iostream>
 #include <iomanip>

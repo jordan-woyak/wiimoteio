@@ -23,7 +23,7 @@ distribution.
 
 #pragma once
 
-#include "report.h"
+#include "report.hpp"
 
 namespace wio
 {

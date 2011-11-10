@@ -23,7 +23,7 @@ distribution.
 
 #include <numeric>
 
-#include "basic_wiimote.h"
+#include "basic_wiimote.hpp"
 
 namespace wio
 {

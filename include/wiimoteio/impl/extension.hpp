@@ -21,7 +21,7 @@ misrepresented as being the original software.
 distribution.
 */
 
-#include "extension.h"
+#include "extension.hpp"
 
 namespace wio
 {
