@@ -35,8 +35,11 @@ namespace wio
 class worker_thread
 {
 public:
-	//typedef std::chrono::high_resolution_clock clock;
+#ifndef _WIN32
+	typedef std::chrono::high_resolution_clock clock;
+#else
 	typedef std::chrono::steady_clock clock;
+#endif
 
 	typedef unsigned int job_type;
 
@@ -82,7 +85,7 @@ public:
 	void remove_type(job_type _type)
 	{
 		std::lock_guard<std::mutex> lk(m_job_lock);
-		
+
 		for (auto iter = m_job_queue.begin(); iter != m_job_queue.end(); )
 			if (_type == iter->second.type)
 				m_job_queue.erase(iter++);

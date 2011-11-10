@@ -21,6 +21,8 @@ misrepresented as being the original software.
 distribution.
 */
 
+#pragma once
+
 #include <numeric>
 
 #include "basic_wiimote.hpp"
@@ -132,7 +134,7 @@ namespace wio
 //	// TODO: check data.size() first
 //	std::unique_ptr<ack_reply_handler> handler(new ack_reply_handler(rpt::write_data::RPT_ID, count));
 //	auto fut = handler->promise.get_future();
-//		
+//
 //	add_report_handler(std::move(handler));
 //
 //	while (iter != iterend)

@@ -23,8 +23,10 @@ distribution.
 
 #include "wiimoteio/wiimoteio.hpp"
 
+#include <chrono>
 #include <iostream>
 #include <iomanip>
+#include <algorithm>
 #include <functional>
 #include <thread>
 #include <fstream>
@@ -51,7 +53,7 @@ int main()
 	if (!found_wiimotes.empty())
 	{
 		auto& wm = *found_wiimotes.front();
-		
+
 		for (wio::u8 leds = wio::leds::player(0); leds != wio::leds::player(4); leds <<= 1)
 		{
 			wm.set_leds(leds);
@@ -97,7 +99,8 @@ int main()
 		{
 			auto fut = thrd_ender.get_future();
 
-			while (fut.wait_for(std::chrono::milliseconds(10)) == std::future_status::timeout)
+			//while (fut.wait_for(std::chrono::milliseconds(10)) == std::future_status::timeout)
+			while (true)
 			{
 				auto& button = wm.get_input_button();
 				auto& accel = wm.get_input_accel();
@@ -107,7 +110,7 @@ int main()
 
 				std::cout << "Button: "
 					<< std::fixed << std::hex << std::setw(4) << std::setfill('0') << (int)button << ' ';
-				
+
 				//std::cout << "Accel: "
 				//	<< "X: " << std::fixed << accel[0].value() << ' '
 				//	<< "Y: " << accel[1].value() << ' '

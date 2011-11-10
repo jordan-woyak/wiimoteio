@@ -23,9 +23,40 @@ distribution.
 
 #pragma once
 
-#include "extension.hpp"
+//#include <system_error>
+#include <array>
 
 namespace wio
 {
+
+std::vector<std::unique_ptr<device>> find_devices(size_t max_wiimotes)
+{
+	// TODO: eliminate redundancy !!!
+
+	// VID = Nintendo, PID = Wiimote
+	// must be sorted!
+	static std::pair<u16, u16> const vid_pids[] =
+	{
+		std::make_pair(0x0001, 0x0002),
+		std::make_pair(0x0002, 0x00f7),
+		std::make_pair(0x057e, 0x0306),
+	};
+
+	//auto const vid_pids_end = vid_pids + 3;	// TODO: s/3/sizeof...
+
+	std::vector<std::unique_ptr<device>> found_devices;
+
+	return found_devices;
+}
+
+size_t device::read(char_type* data, size_t len)
+{
+	return 0;
+}
+
+bool device::write(const char_type* _data, size_t _len)
+{
+	return (::write(m_sock_out, _data, _len) == static_cast<int>(_len));
+}
 
 }	// namespace

@@ -21,6 +21,8 @@ misrepresented as being the original software.
 distribution.
 */
 
+#pragma once
+
 #include "wiimote.hpp"
 #include "report.hpp"
 
@@ -33,7 +35,7 @@ std::vector<std::unique_ptr<wiimote>> find_Wiimotes(size_t max_wiimotes)
 
 	std::vector<std::unique_ptr<wiimote>> wiimotes;
 	wiimotes.reserve(devs.size());
-	
+
 	std::for_each(devs.begin(), devs.end(), [&wiimotes](std::unique_ptr<device>& dev)
 	{
 		//u8 foo[22];
@@ -124,7 +126,7 @@ std::future<wiimote::ack_error> wiimote::write_data(address_space _space, addres
 
 	std::unique_ptr<ack_reply_handler<rpt::write_data>> handler(new ack_reply_handler<rpt::write_data>(count));
 	auto fut = handler->promise.get_future();
-	
+
 	add_report_handler(std::move(handler));
 
 	while (iter != iterend)
@@ -144,7 +146,7 @@ std::future<wiimote::ack_error> wiimote::write_data(address_space _space, addres
 
 			send_report(write_data);
 		});
-		
+
 		iter += size;
 		_address += size;
 	}

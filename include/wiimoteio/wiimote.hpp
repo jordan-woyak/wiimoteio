@@ -42,6 +42,12 @@ namespace wio
 
 typedef std::pair<std::array<u8, 9>, std::array<u8, 2>> ir_sensitivity;
 
+#ifndef _WIN32
+	typedef std::chrono::high_resolution_clock clock_type;
+#else
+	typedef std::chrono::steady_clock clock_type;
+#endif
+
 namespace leds
 {
 
@@ -121,13 +127,14 @@ public:
 			// check for unhandled status report
 			if (auto status = report_cast<rpt::status>(_rpt))
 			{
+				(void)status;
 				//printf("send mode\n");
 				update_reporting_mode();
 			}
 		});
 
 		request_status();
-		
+
 		update_accel_calibration();
 
 		// button data is found in every input report
@@ -213,11 +220,11 @@ public:
 	template <typename R, typename P>
 	void rumble_for(const std::chrono::duration<R, P>& rel)
 	{
-		rumble_until(std::chrono::steady_clock::now() + rel);
+		rumble_until(clock_type::now() + rel);
 	}
 
 	typedef float battery_level;
-	
+
 	battery_level get_battery_level() const
 	{
 		return (battery_level)m_state.battery.load() / 0xc0;
@@ -263,7 +270,7 @@ public:
 
 	std::future<ack_error> write_register(address_type _address, const std::vector<u8>& _data)
 	{ return write_data(space_register, _address, _data); }
-	
+
 	// enable/disable input features
 
 	bool get_report_button() const
@@ -272,7 +279,7 @@ public:
 	void set_report_button(bool _enable)
 	{
 		m_state.report_button.store(_enable);
-		
+
 		update_reporting_mode();
 	}
 
@@ -404,7 +411,7 @@ public:
 	{
 		auto data = read_register(0xa600fa, 6).get();
 
-		return data.size() != 0;	
+		return data.size() != 0;
 	}
 
 	// TODO: asyncronous?
@@ -508,14 +515,14 @@ private:
 		std::atomic<u8> battery;
 		std::atomic<bool> present_ext;
 		std::atomic<extid_t> extid;
-	
+
 		volatile speaker_rate_type speaker_rate;
 		volatile speaker_format_type speaker_fmt;
 		volatile speaker_volume_type speaker_vol;
 
 		std::atomic<u8> ext_mode;
 		std::atomic<u8> gyro_mode;
-	
+
 		// features
 		std::atomic<bool>
 			report_button,
@@ -551,7 +558,8 @@ private:
 
 		m_worker.schedule_job([this]
 		{
-			send_report(report<rpt::status_request>());
+			report<rpt::status_request> rpt;
+			send_report(rpt);
 		});
 	}
 
@@ -578,12 +586,13 @@ private:
 			}
 
 			std::function<void(const std::vector<u8>&)> func;
+
+			func_handler(const std::function<void(const std::vector<u8>&)>& _func)
+				: func(_func)
+			{}
 		};
 
-		std::unique_ptr<func_handler> handler(new func_handler);
-		handler->func = _func;
-
-		return add_report_handler(std::move(handler));
+		return add_report_handler(std::unique_ptr<report_handler>(new func_handler(_func)));
 	}
 
 	template <typename R>
@@ -597,12 +606,13 @@ private:
 			}
 
 			std::function<void(const report<R>&)> func;
+
+			func_handler(const std::function<void(const report<R>&)>& _func)
+				: func(_func)
+			{}
 		};
 
-		std::unique_ptr<func_handler> handler(new func_handler);
-		handler->func = _func;
-
-		return add_report_handler(std::move(handler));
+		return add_report_handler(std::unique_ptr<report_handler>(new func_handler(_func)));
 	}
 
 	void initialize_extension()
@@ -760,7 +770,7 @@ inline void wiimote::handle_button_data_report(const std::vector<u8>& _rpt)
 //	//set_bit(m_input_state.accel[1].val, 1, get_bit(_rpt.button[1], 5));
 //	//// z
 //	//m_input_state.accel[2].val = _rpt.accel.z << 2;
-//	//set_bit(m_input_state.accel[2].val, 1, get_bit(_rpt.button[1], 6));	
+//	//set_bit(m_input_state.accel[2].val, 1, get_bit(_rpt.button[1], 6));
 //}
 
 template <typename R>

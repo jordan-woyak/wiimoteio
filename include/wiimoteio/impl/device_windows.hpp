@@ -21,10 +21,10 @@ misrepresented as being the original software.
 distribution.
 */
 
+#pragma once
+
 //#include <system_error>
 #include <array>
-
-#include "device.hpp"
 
 #pragma comment(lib, "Setupapi.lib")
 #pragma comment(lib, "Hid.lib")
@@ -46,7 +46,7 @@ std::vector<std::unique_ptr<device>> find_devices(size_t max_wiimotes)
 	auto const vid_pids_end = vid_pids + 3;	// TODO: s/3/sizeof...
 
 	std::vector<std::unique_ptr<device>> found_devices;
-	
+
 	// Get the device id
 	GUID device_id;
 	HidD_GetHidGuid(&device_id);
@@ -82,7 +82,7 @@ std::vector<std::unique_ptr<device>> find_devices(size_t max_wiimotes)
 			GENERIC_READ | GENERIC_WRITE,
 			0, nullptr,
 			OPEN_EXISTING, FILE_FLAG_OVERLAPPED, nullptr);
-		
+
 		if (INVALID_HANDLE_VALUE == dev)
 			continue;
 

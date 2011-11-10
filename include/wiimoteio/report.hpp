@@ -97,7 +97,7 @@ struct hid_header
 	struct HidCmd
 	{
 		HidCmd(const u8 _type, const u8 _param)
-			: type(_type), param(_param)
+			: param(_param), type(_type)
 		{}
 
 		u8	param : 4;
@@ -141,7 +141,7 @@ const report<P>* report_cast(C& _rpt)
 
 // TODO: poor name
 template <u8 T, u8 P, u8 I>
-struct payload
+struct basic_payload
 {
 	struct hid
 	{
@@ -155,13 +155,13 @@ struct payload
 template <u8 I>
 struct input_report
 {
-	typedef payload<hid_type::data, hid_param::input, I> payload;
+	typedef basic_payload<hid_type::data, hid_param::input, I> payload;
 };
 
 template <u8 I>
 struct output_report
 {
-	typedef payload<hid_type::set_report, hid_param::output, I> payload;
+	typedef basic_payload<hid_type::set_report, hid_param::output, I> payload;
 };
 
 namespace rpt
@@ -179,7 +179,7 @@ struct status : input_report<0x20>
 	u8 leds : 4;
 
 	u8 : 8;
-		
+
 	u8 : 8;
 
 	u8 battery;
@@ -298,7 +298,7 @@ struct write_data : output_report<0x16>
 	u8 : 1;
 	u8 space : 2;	// address space
 	u8 : 4;
-		
+
 private:
 	u8 address[3];
 	u8 size;
@@ -311,7 +311,7 @@ public:
 	{
 		address[0] = u8(_address >> 0x10);
 		address[1] = u8(_address >> 0x08);
-		address[2] = u8(_address >> 0x00);		
+		address[2] = u8(_address >> 0x00);
 	}
 
 	void set_size(u8 _size)
@@ -328,7 +328,7 @@ struct read_data : output_report<0x17>
 	u8 : 1;
 	u8 space : 2;	// address space
 	u8 : 4;
-		
+
 private:
 	u8 address[3];
 	u8 size[2];

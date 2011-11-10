@@ -40,8 +40,6 @@ extern "C"
 namespace wio
 {
 
-static const DWORD max_packet_size = 23;
-
 class device
 {
 private:
