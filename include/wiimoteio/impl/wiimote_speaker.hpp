@@ -21,8 +21,7 @@ misrepresented as being the original software.
 distribution.
 */
 
-#ifndef WMLIB_WIIMOTE_SPEAKER_H_
-#define WMLIB_WIIMOTE_SPEAKER_H_
+#pragma once
 
 #include "../wiimote.h"
 
@@ -157,4 +156,3 @@ void wiimote::speaker_stream_some(S stream)
 
 }
 
-#endif
